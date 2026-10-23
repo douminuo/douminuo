@@ -179,10 +179,20 @@ function hasRecoil(body) {
   return /\brecoil:\s*\[/.test(body);
 }
 
-/** 첫 `secondary:` 만 본다 — mod 본문이 앞에 붙으면 `secondary: undefined` 가 본가를 덮음. */
+/**
+ * 첫 `secondary:`/`secondaries:` 만 본다 — mod 본문이 앞에 붙으면 `secondary: undefined` 가 본가를 덮음.
+ * 부가효과 여러 개(불꽃엄니 등)는 `secondaries: [...]` 로 적혀 있음.
+ */
 function hasSecondaryBlock(body) {
-  const m = body.match(/\bsecondary:\s*(\S)/);
-  return !!m && m[1] === '{';
+  const m = body.match(/\bsecondar(?:y|ies):\s*(\S)/);
+  return !!m && (m[1] === '{' || m[1] === '[');
+}
+
+/** 다단 타수 — 고정 `multihit: 2` 또는 범위 `multihit: [2, 5]`. 스마트누오 계산기 기술 객체와 같은 모양. */
+function parseMultihit(body) {
+  const m = body.match(/\bmultihit:\s*(?:\[\s*(\d+)\s*,\s*(\d+)\s*\]|(\d+))/);
+  if (!m) return null;
+  return m[3] ? Number(m[3]) : [Number(m[1]), Number(m[2])];
 }
 
 /** 확정 급소 기술 (트릭플라워·스톰스로우·프로스트브레스 등). */
@@ -198,6 +208,9 @@ function buildTagsForMoveBody(body) {
     tags.sheerForceEligible = true;
   }
   if (hasWillCrit(body)) tags.alwaysCrit = true;
+  const hits = parseMultihit(body);
+  if (hits) tags.multihit = hits;
+  if (/\bmultiaccuracy:\s*true\b/.test(body)) tags.multiaccuracy = true;
   return tags;
 }
 
@@ -226,7 +239,7 @@ async function main() {
     if (Object.keys(tags).length) moves[k] = tags;
   }
   const doc = {
-    version: 3,
+    version: 4,
     source: 'pokemon-showdown data/moves.ts + data/mods/champions/moves.ts',
     sourceUrl: DEFAULT_URL,
     modSourceUrl: CHAMPIONS_URL,

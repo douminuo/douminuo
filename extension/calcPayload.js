@@ -27,13 +27,14 @@
     if (movesTbl && typeof movesTbl === 'object' && slug) {
       rawFlags = movesTbl[slug];
     }
+    var tags = rawFlags && typeof rawFlags === 'object' ? rawFlags : {};
+    // moveTags 의 비-flag 키 — 사이트 기술 객체에선 flags 밖 최상위 필드.
+    var NON_FLAG = { recoil: 1, sheerForceEligible: 1, alwaysCrit: 1, multihit: 1, multiaccuracy: 1 };
     var flags = {};
-    if (rawFlags && typeof rawFlags === 'object') {
-      var fk;
-      for (fk in rawFlags) {
-        if (Object.prototype.hasOwnProperty.call(rawFlags, fk) && rawFlags[fk] === true) {
-          flags[fk] = 1;
-        }
+    var fk;
+    for (fk in tags) {
+      if (Object.prototype.hasOwnProperty.call(tags, fk) && tags[fk] === true && !NON_FLAG[fk]) {
+        flags[fk] = 1;
       }
     }
 
@@ -43,6 +44,8 @@
       ? typeEn.charAt(0).toUpperCase() + typeEn.slice(1).toLowerCase()
       : 'Normal';
 
+    // 사이트 계산기 기술 목록 행과 같은 모양 (smogon gen9 move → {…, multihit, multiaccuracy, secondaries, recoil}).
+    // 사이트 결정력이 secondaries(우격다짐)·recoil(이판사판)을 보고, move.name watcher 가 multihit 로 타수를 채움.
     return {
       id: slug,
       name: enName,
@@ -51,8 +54,10 @@
       basePower: power,
       category: category,
       flags: flags,
-      secondaries: false,
-      recoil: false,
+      multihit: tags.multihit,
+      multiaccuracy: !!tags.multiaccuracy,
+      secondaries: !!tags.sheerForceEligible,
+      recoil: !!tags.recoil,
     };
   }
 

@@ -59,6 +59,11 @@ const wantSheer = Math.round(Math.round(75 * 1.3) * 1.5) * 100;
 assert(sheer[0].buffed === wantSheer, 'sheer force buffed');
 assert(sheer[0].base === sheer[0].buffed, 'sheer base equals buffed');
 
+// 부가효과 여러 개(`secondaries: [...]`) 기술도 우격다짐 대상 — 불꽃엄니.
+const fireFang = { name: 'fire-fang', power: '65', damage_class: 'physical', type: 'Fire' };
+const sheerFang = cmp({ pokemon: { moves: [fireFang], stats: { attack: { real: 100 } } }, ability: { name: 'Sheer Force' } }, ['fire']);
+assert(sheerFang[0].buffed === Math.round(Math.round(65 * 1.3) * 1.5) * 100, 'sheer force + fire fang (secondaries[]): got ' + sheerFang[0].buffed);
+
 const firePunchKo = {
   nameKr: '불꽃펀치',
   power: '75',
