@@ -296,8 +296,8 @@
       if (wrap) {
         var S = readSpeedFromWrap(wrap);
         if (Number.isFinite(S)) {
-          var abName = readInputValueByXPath(XPATH_SLOT_ABILITY_INPUT);
-          var itName = readInputValueByXPath(XPATH_SLOT_ITEM_INPUT);
+          var abName = readSlotFieldByLabel('특성');
+          var itName = readSlotFieldByLabel('도구');
           var F = computeFinal(S, abName, abilityOn, itName, itemOn);
           if (Number.isFinite(F) && F > 0) {
             var pn = presetEvNat(slot);
@@ -426,17 +426,26 @@
 
   /**
    * 스피드 관련 특성/도구 → 배율 매핑. 토글 ON 이어도 매핑 없으면 배율 1.
-   * 이름 표기는 스마트누오 hidden input 에 들어가는 정식 한글 명칭 기준.
+   * 이름 표기는 스마트누오 입력칸에 들어가는 한글 명칭 기준. 목록 = 사이트 스피드 특성·도구 (`/api/ability?for=speed` 등).
+   * 조건부(날씨·필드·상태이상·도구 소모·최고 능력치)는 토글 ON 이 "조건 충족" 의미. 부스트에너지는 고대활성/쿼크차지 쪽 배율이라 1.
    */
   var ABILITY_MUL = {
     '엽록소': 2,
     '쓱쓱': 2,
     '모래헤치기': 2,
     '눈치우기': 2,
+    '서핑테일': 2,
+    '곡예': 2,
+    '속보': 1.5,
+    '고대활성': 1.5,
+    '쿼크차지': 1.5,
+    '슬로스타트': 0.5,
   };
   var ITEM_MUL = {
     '구애스카프': 1.5,
     '검은철구': 0.5,
+    '교정깁스': 0.5,
+    '스피드파우더': 2,
   };
 
   /** 특성→도구 순차 floor. 토글 OFF 면 해당 배율 1. */
@@ -448,62 +457,46 @@
     return Math.floor(step1 * it);
   }
 
+  /** 텍스트가 정확히 text 인 첫 tag 요소 (사이트 라벨 앵커). */
+  function findLabelEl(tag, text) {
+    var els = document.getElementsByTagName(tag);
+    var i;
+    for (i = 0; i < els.length; i++) {
+      if (els[i].textContent.trim() === text) return els[i];
+    }
+    return null;
+  }
+
   /**
    * 우측 편집 패널 "스피드 수치" 실수값 입력 wrap 반환. 못 찾으면 null.
-   *
-   * Phase 2.C (2026-05-09): 사이트 Tailwind 마이그레이션으로 옛 라벨 트래버스 깨짐.
-   * 사용자 제공 XPath 직접 사용 — ghost ring 의 선례. 매우 싸고 정확.
-   *
-   * F9 캐시 유지: lastWrap.isConnected 면 재사용, 그게 깨지면 XPath 재실행.
+   * 라벨 앵커 (옛 절대 XPath 대체): `<p>스피드 수치</p>` 의 헤더 칸 → 다음 줄 같은 칸 → `<label>실수값</label>` 박스.
+   * F9 캐시 유지: lastWrap.isConnected 면 재사용.
    */
   function findSpeedRealWrap() {
     if (lastWrap && lastWrap.isConnected) {
       var cachedInput = lastWrap.querySelector('input');
       if (cachedInput) return lastWrap;
     }
-    var xpath = '/html/body/div[1]/div/main/div/div[3]/div/div[3]/div[3]/div[2]/div[4]';
-    try {
-      var result = document.evaluate(
-        xpath,
-        document,
-        null,
-        XPathResult.FIRST_ORDERED_NODE_TYPE,
-        null
-      );
-      var node = result && result.singleNodeValue;
-      if (!node || node.nodeType !== 1) return null;
-      if (!node.querySelector('input')) return null;
-      return node;
-    } catch (e) {
-      return null;
+    var p = findLabelEl('p', '스피드 수치');
+    var cell = p && p.parentElement;
+    var hdr = cell && cell.parentElement;
+    var row = hdr && hdr.nextElementSibling;
+    var col = row && row.children[Array.prototype.indexOf.call(hdr.children, cell)];
+    if (!col) return null;
+    var labels = col.getElementsByTagName('label');
+    var i;
+    for (i = 0; i < labels.length; i++) {
+      var box = labels[i].parentElement;
+      if (labels[i].textContent.trim() === '실수값' && box.querySelector('input')) return box;
     }
+    return null;
   }
 
-  /** 우측 편집 패널 active 슬롯 — 특성·도구 입력 (Tailwind; XPath 고정). DOM 변경 시 여기만 수정. */
-  var XPATH_SLOT_ABILITY_INPUT =
-    '/html/body/div[1]/div/main/div/div[3]/div/div[4]/div/div[1]/div/input';
-  var XPATH_SLOT_ITEM_INPUT =
-    '/html/body/div[1]/div/main/div/div[3]/div/div[4]/div/div[2]/div/input';
-
-  /** XPath 로 element 찾고 .value 또는 textContent 반환. 못 찾으면 빈 string. */
-  function readInputValueByXPath(xpath) {
-    try {
-      var result = document.evaluate(
-        xpath,
-        document,
-        null,
-        XPathResult.FIRST_ORDERED_NODE_TYPE,
-        null
-      );
-      var node = result && result.singleNodeValue;
-      if (!node) return '';
-      var raw =
-        node.value != null ? node.value : (node.getAttribute && node.getAttribute('value')) || '';
-      if (!raw && node.textContent) raw = node.textContent;
-      return String(raw || '').trim();
-    } catch (e) {
-      return '';
-    }
+  /** 우측 편집 패널 active 슬롯의 특성·도구 입력값 — `<label>특성</label>`/`<label>도구</label>` 박스의 input. 못 찾으면 ''. */
+  function readSlotFieldByLabel(text) {
+    var label = findLabelEl('label', text);
+    var input = label && label.parentElement.querySelector('input');
+    return input ? String(input.value || '').trim() : '';
   }
 
   /** 주어진 스피드 실수값 입력 wrap 에서 정수 추출. 못 읽으면 null. */
@@ -706,8 +699,8 @@
     var map = regulationSpeedBySpeed;
     var wrapEl = root.host && root.host.parentElement;
     var S = wrapEl ? readSpeedFromWrap(wrapEl) : null;
-    var abName = readInputValueByXPath(XPATH_SLOT_ABILITY_INPUT);
-    var itName = readInputValueByXPath(XPATH_SLOT_ITEM_INPUT);
+    var abName = readSlotFieldByLabel('특성');
+    var itName = readSlotFieldByLabel('도구');
     var F = computeFinal(S, abName, abilityOn, itName, itemOn);
     var hasF = Number.isFinite(F) && F > 0;
 
@@ -1216,8 +1209,8 @@
       lastKey = '';
     }
     var S = readSpeedFromWrap(wrap);
-    var abName = readInputValueByXPath(XPATH_SLOT_ABILITY_INPUT);
-    var itName = readInputValueByXPath(XPATH_SLOT_ITEM_INPUT);
+    var abName = readSlotFieldByLabel('특성');
+    var itName = readSlotFieldByLabel('도구');
     var key = S + '|' + abName + '|' + abilityOn + '|' + itName + '|' + itemOn + '|' + oppScarfOn;
     if (key === lastKey) return;
     lastKey = key;
