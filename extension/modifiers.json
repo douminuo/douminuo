@@ -1,5 +1,5 @@
 {
-  "version": 15,
+  "version": 16,
   "items": {
     "choice-band": {
       "atkMulPhysical": 1.5,
@@ -151,6 +151,296 @@
     "maranga-berry": {
       "bulkSpdMul": 1.5,
       "nameKo": "타라프열매"
+    },
+    "iron-plate": {
+      "boostType": "steel",
+      "typedPowerMul": 1.2,
+      "nameKo": "강철플레이트"
+    },
+    "icicle-plate": {
+      "boostType": "ice",
+      "typedPowerMul": 1.2,
+      "nameKo": "고드름플레이트"
+    },
+    "dread-plate": {
+      "boostType": "dark",
+      "typedPowerMul": 1.2,
+      "nameKo": "공포플레이트"
+    },
+    "earth-plate": {
+      "boostType": "ground",
+      "typedPowerMul": 1.2,
+      "nameKo": "대지플레이트"
+    },
+    "toxic-plate": {
+      "boostType": "poison",
+      "typedPowerMul": 1.2,
+      "nameKo": "맹독플레이트"
+    },
+    "splash-plate": {
+      "boostType": "water",
+      "typedPowerMul": 1.2,
+      "nameKo": "물방울플레이트"
+    },
+    "flame-plate": {
+      "boostType": "fire",
+      "typedPowerMul": 1.2,
+      "nameKo": "불구슬플레이트"
+    },
+    "insect-plate": {
+      "boostType": "bug",
+      "typedPowerMul": 1.2,
+      "nameKo": "비단벌레플레이트"
+    },
+    "stone-plate": {
+      "boostType": "rock",
+      "typedPowerMul": 1.2,
+      "nameKo": "암석플레이트"
+    },
+    "draco-plate": {
+      "boostType": "dragon",
+      "typedPowerMul": 1.2,
+      "nameKo": "용의플레이트"
+    },
+    "zap-plate": {
+      "boostType": "electric",
+      "typedPowerMul": 1.2,
+      "nameKo": "우뢰플레이트"
+    },
+    "spooky-plate": {
+      "boostType": "ghost",
+      "typedPowerMul": 1.2,
+      "nameKo": "원령플레이트"
+    },
+    "mind-plate": {
+      "boostType": "psychic",
+      "typedPowerMul": 1.2,
+      "nameKo": "이상한플레이트"
+    },
+    "pixie-plate": {
+      "boostType": "fairy",
+      "typedPowerMul": 1.2,
+      "nameKo": "정령플레이트"
+    },
+    "fist-plate": {
+      "boostType": "fighting",
+      "typedPowerMul": 1.2,
+      "nameKo": "주먹플레이트"
+    },
+    "meadow-plate": {
+      "boostType": "grass",
+      "typedPowerMul": 1.2,
+      "nameKo": "초록플레이트"
+    },
+    "sky-plate": {
+      "boostType": "flying",
+      "typedPowerMul": 1.2,
+      "nameKo": "푸른하늘플레이트"
+    },
+    "steel-gem": {
+      "boostType": "steel",
+      "typedPowerMul": 1.3,
+      "nameKo": "강철주얼"
+    },
+    "fighting-gem": {
+      "boostType": "fighting",
+      "typedPowerMul": 1.3,
+      "nameKo": "격투주얼"
+    },
+    "ghost-gem": {
+      "boostType": "ghost",
+      "typedPowerMul": 1.3,
+      "nameKo": "고스트주얼"
+    },
+    "normal-gem": {
+      "boostType": "normal",
+      "typedPowerMul": 1.3,
+      "nameKo": "노말주얼"
+    },
+    "poison-gem": {
+      "boostType": "poison",
+      "typedPowerMul": 1.3,
+      "nameKo": "독주얼"
+    },
+    "dragon-gem": {
+      "boostType": "dragon",
+      "typedPowerMul": 1.3,
+      "nameKo": "드래곤주얼"
+    },
+    "ground-gem": {
+      "boostType": "ground",
+      "typedPowerMul": 1.3,
+      "nameKo": "땅주얼"
+    },
+    "water-gem": {
+      "boostType": "water",
+      "typedPowerMul": 1.3,
+      "nameKo": "물주얼"
+    },
+    "rock-gem": {
+      "boostType": "rock",
+      "typedPowerMul": 1.3,
+      "nameKo": "바위주얼"
+    },
+    "bug-gem": {
+      "boostType": "bug",
+      "typedPowerMul": 1.3,
+      "nameKo": "벌레주얼"
+    },
+    "fire-gem": {
+      "boostType": "fire",
+      "typedPowerMul": 1.3,
+      "nameKo": "불꽃주얼"
+    },
+    "flying-gem": {
+      "boostType": "flying",
+      "typedPowerMul": 1.3,
+      "nameKo": "비행주얼"
+    },
+    "dark-gem": {
+      "boostType": "dark",
+      "typedPowerMul": 1.3,
+      "nameKo": "악주얼"
+    },
+    "ice-gem": {
+      "boostType": "ice",
+      "typedPowerMul": 1.3,
+      "nameKo": "얼음주얼"
+    },
+    "psychic-gem": {
+      "boostType": "psychic",
+      "typedPowerMul": 1.3,
+      "nameKo": "에스퍼주얼"
+    },
+    "electric-gem": {
+      "boostType": "electric",
+      "typedPowerMul": 1.3,
+      "nameKo": "전기주얼"
+    },
+    "fairy-gem": {
+      "boostType": "fairy",
+      "typedPowerMul": 1.3,
+      "nameKo": "페어리주얼"
+    },
+    "grass-gem": {
+      "boostType": "grass",
+      "typedPowerMul": 1.3,
+      "nameKo": "풀주얼"
+    },
+    "light-ball": {
+      "atkMulPhysical": 2,
+      "spaMulSpecial": 2,
+      "speciesKo": [
+        "피카츄"
+      ],
+      "nameKo": "전기구슬"
+    },
+    "thick-club": {
+      "atkMulPhysical": 2,
+      "speciesKo": [
+        "탕구리",
+        "텅구리"
+      ],
+      "nameKo": "굵은뼈"
+    },
+    "deep-sea-tooth": {
+      "spaMulSpecial": 2,
+      "speciesKo": [
+        "진주몽"
+      ],
+      "nameKo": "심해의이빨"
+    },
+    "adamant-orb": {
+      "boostType": [
+        "dragon",
+        "steel"
+      ],
+      "typedPowerMul": 1.2,
+      "speciesKo": [
+        "디아루가"
+      ],
+      "nameKo": "금강옥"
+    },
+    "adamant-crystal": {
+      "boostType": [
+        "dragon",
+        "steel"
+      ],
+      "typedPowerMul": 1.2,
+      "speciesKo": [
+        "디아루가"
+      ],
+      "nameKo": "큰금강옥"
+    },
+    "lustrous-orb": {
+      "boostType": [
+        "dragon",
+        "water"
+      ],
+      "typedPowerMul": 1.2,
+      "speciesKo": [
+        "펄기아"
+      ],
+      "nameKo": "백옥"
+    },
+    "lustrous-globe": {
+      "boostType": [
+        "dragon",
+        "water"
+      ],
+      "typedPowerMul": 1.2,
+      "speciesKo": [
+        "펄기아"
+      ],
+      "nameKo": "큰백옥"
+    },
+    "griseous-orb": {
+      "boostType": [
+        "dragon",
+        "ghost"
+      ],
+      "typedPowerMul": 1.2,
+      "speciesKo": [
+        "기라티나"
+      ],
+      "nameKo": "백금옥"
+    },
+    "griseous-core": {
+      "boostType": [
+        "dragon",
+        "ghost"
+      ],
+      "typedPowerMul": 1.2,
+      "speciesKo": [
+        "기라티나"
+      ],
+      "nameKo": "큰백금옥"
+    },
+    "soul-dew": {
+      "boostType": [
+        "dragon",
+        "psychic"
+      ],
+      "typedPowerMul": 1.2,
+      "speciesKo": [
+        "라티아스",
+        "라티오스"
+      ],
+      "nameKo": "마음의물방울"
+    },
+    "metal-powder": {
+      "bulkDefMul": 2,
+      "speciesKo": [
+        "메타몽"
+      ],
+      "nameKo": "금속파우더"
+    },
+    "deep-sea-scale": {
+      "bulkSpdMul": 2,
+      "speciesKo": [
+        "진주몽"
+      ],
+      "nameKo": "심해의비늘"
     }
   },
   "abilities": {
@@ -286,6 +576,7 @@
     "water-bubble": {
       "boostType": "water",
       "typedPowerMul": 2,
+      "typedMulOnStat": true,
       "nameKo": "수포"
     },
     "dark-aura": {
@@ -311,6 +602,7 @@
     "steelworker": {
       "boostType": "steel",
       "typedPowerMul": 1.5,
+      "typedMulOnStat": true,
       "nameKo": "강철술사"
     },
     "steely-spirit": {
@@ -359,6 +651,7 @@
     },
     "orichalcum-pulse": {
       "setsWeather": "sun",
+      "condAtkMulPhysical": 1.3333333333333333,
       "nameKo": "진홍빛고동"
     },
     "electric-surge": {
@@ -379,6 +672,7 @@
     },
     "hadron-engine": {
       "setsTerrain": "electric",
+      "condSpaMulSpecial": 1.3333333333333333,
       "nameKo": "하드론엔진"
     },
     "solar-power": {
@@ -437,11 +731,12 @@
       "nameKo": "노말스킨"
     },
     "parental-bond": {
-      "finalDamageMul": 1.25,
+      "parentalBond": true,
       "nameKo": "부자유친"
     },
     "fur-coat": {
       "bulkDefMul": 2,
+      "bulkFinal": true,
       "nameKo": "퍼코트"
     },
     "marvel-scale": {
@@ -458,6 +753,7 @@
     },
     "ice-scales": {
       "bulkSpdMul": 2,
+      "bulkFinal": true,
       "nameKo": "얼음인분"
     },
     "protosynthesis": {
@@ -480,17 +776,20 @@
       "bulkDefMul": 2,
       "bulkSpdMul": 2,
       "bulkConditional": true,
+      "bulkFinal": true,
       "nameKo": "멀티스케일"
     },
     "aura-guard": {
       "bulkDefMul": 2,
       "bulkConditional": true,
+      "bulkFinal": true,
       "nameKo": "파동의방호"
     },
     "shadow-shield": {
       "bulkDefMul": 2,
       "bulkSpdMul": 2,
       "bulkConditional": true,
+      "bulkFinal": true,
       "nameKo": "스펙터가드"
     },
     "tablets-of-ruin": {
@@ -508,6 +807,15 @@
     "beads-of-ruin": {
       "movePowerFoeSpDefenseRuinMul": 1.3333333333333333,
       "nameKo": "재앙의구슬"
+    },
+    "rocky-payload": {
+      "boostType": "rock",
+      "typedPowerMul": 1.5,
+      "nameKo": "바위나르기"
+    },
+    "slow-start": {
+      "atkMulPhysical": 0.5,
+      "nameKo": "슬로스타트"
     }
   }
 }

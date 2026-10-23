@@ -132,49 +132,50 @@
     var b = realByLetter.B;
     var d = realByLetter.D;
     if (h == null || b == null || d == null) return null;
-    var physBase = Math.round((h * b) / BULK_REAL_DIVISOR);
-    var specBase = Math.round((h * d) / BULK_REAL_DIVISOR);
+    // 스마트누오 계산기 durability 구조: floor(H × 방어[배율마다 floor] × S / 0.411).
+    // 방어 쪽 = 특성 → 도구 → 날씨 순 실수치 배율, S = bulkFinal 특성(멀티스케일·퍼코트 등) 최종 곱.
+    var physBase = Math.floor((h * b) / BULK_REAL_DIVISOR);
+    var specBase = Math.floor((h * d) / BULK_REAL_DIVISOR);
 
     var excludeConditional = !!(opts && opts.excludeConditionalAbilities === true);
-
-    var itemRule = findItemBulkRule(modifiersDoc, itemRaw);
-    var defM = 1;
-    var spdM = 1;
-    if (itemRule) {
-      var im = bulkMultipliersFromRule(itemRule);
-      defM = im.defM;
-      spdM = im.spdM;
+    var bEff = b;
+    var dEff = d;
+    var sDef = 1;
+    var sSpd = 1;
+    function statMul(m) {
+      if (m.def !== 1) bEff = Math.floor(bEff * m.def);
+      if (m.spd !== 1) dEff = Math.floor(dEff * m.spd);
     }
 
     var abFound = findAbilityRuleWithSlug(modifiersDoc, abilityRaw);
+    var arule = (abFound && abFound.rule) || {};
     if (abFound) {
-      var aslug = abFound.slug;
-      var arule = abFound.rule || {};
-      if (aslug === 'embody-aspect' && arule.bulkEmbodyAspect) {
-        var em = embodyBulkMulFromContext(speciesTitleContext || '');
-        defM *= em.def;
-        spdM *= em.spd;
+      if (abFound.slug === 'embody-aspect' && arule.bulkEmbodyAspect) {
+        statMul(embodyBulkMulFromContext(speciesTitleContext || ''));
       } else if (arule.bulkHighestOfAtkFamily) {
-        var pq = protoQuarkBulkMul(realByLetter, arule);
-        defM *= pq.def;
-        spdM *= pq.spd;
-      } else {
+        statMul(protoQuarkBulkMul(realByLetter, arule));
+      } else if (!(excludeConditional && arule.bulkConditional === true)) {
         // F51: 풀체력 조건부 (bulkConditional) 는 인라인 컨텍스트(opts.excludeConditionalAbilities)에서 skip.
-        var skipConditional = excludeConditional && arule.bulkConditional === true;
-        if (!skipConditional) {
-          if (arule.bulkDefMul != null) defM *= numBulkMul(arule.bulkDefMul, 1);
-          if (arule.bulkSpdMul != null) spdM *= numBulkMul(arule.bulkSpdMul, 1);
+        var am = bulkMultipliersFromRule(arule);
+        if (arule.bulkFinal) {
+          sDef = am.defM;
+          sSpd = am.spdM;
+        } else {
+          statMul({ def: am.defM, spd: am.spdM });
         }
       }
-      var wx = weatherBulkMulSandSnowOnly(aslug, speciesTypesEn);
-      defM *= wx.def;
-      spdM *= wx.spd;
     }
 
-    var bEff = Math.round(b * defM);
-    var dEff = Math.round(d * spdM);
-    var physBuffed = Math.round((h * bEff) / BULK_REAL_DIVISOR);
-    var specBuffed = Math.round((h * dEff) / BULK_REAL_DIVISOR);
+    var itemRule = findItemBulkRule(modifiersDoc, itemRaw);
+    if (itemRule && FC.ruleFitsSpecies(itemRule, speciesTitleContext)) {
+      var im = bulkMultipliersFromRule(itemRule);
+      statMul({ def: im.defM, spd: im.spdM });
+    }
+
+    if (abFound) statMul(weatherBulkMulSandSnowOnly(abFound.slug, speciesTypesEn));
+
+    var physBuffed = Math.floor((h * bEff * sDef) / BULK_REAL_DIVISOR);
+    var specBuffed = Math.floor((h * dEff * sSpd) / BULK_REAL_DIVISOR);
 
     return { physBase: physBase, specBase: specBase, physBuffed: physBuffed, specBuffed: specBuffed };
   }

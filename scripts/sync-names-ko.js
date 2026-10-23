@@ -7,6 +7,8 @@
  *
  * PokeAPI에 ko 가 없으면 scripts/{kind}-ko-fallback.json 에서 공식 한글명을 찾는다.
  * 거기도 없으면 기존 nameKo·aliases 유지하고 MISSING_KO 로그.
+ * 단 scripts/{kind}-ko-site.json 에 있는 slug 는 스마트누오 표기가 PokeAPI 와 달라서
+ * (예: zap-plate 사이트 "우뢰플레이트" vs PokeAPI "우레플레이트") 그 값을 PokeAPI 보다 우선한다 — 사이트 슬롯 도구명과 매칭돼야 하므로.
  *
  * node scripts/sync-names-ko.js --kind item
  * node scripts/sync-names-ko.js --kind ability
@@ -25,6 +27,7 @@ const SECTION = KIND === 'item' ? 'items' : 'abilities';
 
 const modPath = path.join(__dirname, '..', 'extension', 'modifiers.json');
 const fallbackPath = path.join(__dirname, KIND + '-ko-fallback.json');
+const sitePath = path.join(__dirname, KIND + '-ko-site.json');
 const DELAY_MS = 80;
 
 function loadJsonObject(filePath) {
@@ -50,13 +53,14 @@ async function main() {
   const keys = Object.keys(mod[SECTION] || {});
   const missing = [];
   const fallback = loadJsonObject(fallbackPath);
+  const site = loadJsonObject(sitePath);
 
   for (const slug of keys) {
     const row = await fetchKo(slug);
     const entry = mod[SECTION][slug];
     if (!entry || typeof entry !== 'object') continue;
 
-    let ko = row.ko;
+    let ko = typeof site[slug] === 'string' && site[slug].trim() ? site[slug].trim() : row.ko;
     const fb = fallback[slug];
     if (!ko && typeof fb === 'string' && fb.trim()) {
       ko = fb.trim();

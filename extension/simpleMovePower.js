@@ -1,5 +1,7 @@
 /**
- * 결정력: 위력(테크니션→태그→우격→노말스킨/-ate→타입특성→[조건부:맹화·모래의힘·날씨·필드·선파워]→도구)→STAB→실수치×배율→최종배율
+ * 결정력: 스마트누오 계산기 potential 이식 — floor(위력 u × 실수치 l × 최종배율 d) × 타수.
+ *   u = 위력 특성(테크니션·태그·우격·-스킨·타입특성) 순차 floor, l = 실수치 특성·구애·종 한정 도구 순차 floor,
+ *   d = 자속·생명의구슬·힘의머리띠·[맹화]·타입도구/플레이트/주얼·날씨·필드·급소·재앙 (floor 없이 곱).
  * computeMovePowers: { base, buffed, cls } — base 는 조건부 특성 효과 제외(표기용). cls 는 physical|special.
  * 한글 기술명 → moveKoMap.json 조회 (PokeAPI 공식 한글명 + 소수 별칭).
  * 맹화·모래의힘·선파워: HP·실제 날씨는 보지 않고 배율만 적용.
@@ -151,7 +153,7 @@
   var TERRAIN_TYPE_POWER_MUL = {
     electric: { electric: 1.3 },
     grassy: { grass: 1.3 },
-    misty: {}, // 미스트필드 = 드래곤 피해 반감(방어측) — 공격 위력 보정 없음
+    misty: { dragon: 0.5 }, // 미스트필드 = 드래곤 반감 (사이트 결정력도 ×0.5)
     psychic: { psychic: 1.3 },
   };
 
@@ -168,29 +170,17 @@
     );
   }
 
-  /** 재앙·절운 등 루인 배율: Photon Geyser는 유효 물리/특수 기준 */
-  function effectiveDamageClassForRuin(mv, atkReal, spaReal, moveKoMap, moveId) {
-    if (!mv || typeof mv !== 'object') return String(mv && mv.damage_class ? mv.damage_class : '').toLowerCase();
-    var mid = arguments[4] != null ? arguments[4] : showdownMoveIdFromMove(mv, moveKoMap);
-    if (mid !== 'photongeyser') {
-      return String(mv.damage_class || '').toLowerCase();
-    }
-    var pa = atkReal != null && !isNaN(atkReal) ? atkReal : null;
-    var ps = spaReal != null && !isNaN(spaReal) ? spaReal : null;
-    if (pa == null && ps == null) return String(mv.damage_class || '').toLowerCase();
-    if (pa == null) return 'special';
-    if (ps == null) return 'physical';
-    return pa > ps ? 'physical' : 'special';
+  /** 사이트 fe() 와 같은 4096 고정소수점 곱 (부자유친 2타째 ×0.25). */
+  function pokeRound(v, mul) {
+    var m = (mul * 4096) >>> 0;
+    return ((((v * m) >>> 0) + 2047) / 4096) >>> 0;
   }
 
   /**
    * F8: 한 번의 호출로 base 와 buffed 결정력을 동시에 계산.
-   * - 옛 코드는 `oneMovePowerInternal(...skipConditionalAbility)` 을 2회 호출 (true / false).
-   * - 신 코드는 pEff 를 (Base, Buffed) 두 변수로 병렬 추적. 공통 곱은 둘 다 적용,
-   *   조건부 곱(맹화·모래의힘·setsWeather/setsTerrain·spaBoostInSun) 은 Buffed 에만 적용.
-   * - Math.round 위치는 옛 코드와 동일하게 보존 — 동등성 임시 Node 러너로 검증됨.
-   * - abilityHasConditionalPowerDisplay 가 false 인(또는 조건부가 매치 안 되는) 경우
-   *   base === buffed 가 되어 결과가 옛 코드와 1:1 일치.
+   * - 스마트누오 결정력(potential) 구조: 실수치 l·위력 u 는 배율마다 floor, 최종 d 는 floor 없이 곱, floor(u*l*d).
+   * - 조건부 곱(맹화·모래의힘·setsWeather/setsTerrain·spaBoostInSun·condAtk/SpaMul*) 은 Buffed 에만 적용.
+   * - abilityHasConditionalPowerDisplay 가 false 인(또는 조건부가 매치 안 되는) 경우 base === buffed.
    *
    * @returns {{ base: number, buffed: number, cls: 'physical'|'special' }|null}
    *   cls 는 호출자(ruin 보정 분기)가 활용. null 이면 변화기/위력 0/비공격기.
@@ -286,184 +276,125 @@
     if (!moveTypeEn) return null;
 
     var ar = abilityRule || {};
+    var ir = itemRule || {};
     // 메가솔라 웨더볼: 항상 쾌청 기준 (날씨 ×1.5 는 아래 selfWeather 단계).
     if (moveId === 'weatherball' && WEATHER_BALL_TYPE[ar.selfWeather]) {
       pnum = 100;
       moveTypeEn = WEATHER_BALL_TYPE[ar.selfWeather];
     }
-    // pEff 를 (Base, Buffed) 두 갈래로 추적. 동일 round 시퀀스를 양쪽에 적용.
-    var pBase = pnum;
-    var pBuffed = pnum;
 
-    // === Step 4: 특성 위력 보정 (공통) — powerMul·태그·우격·-ate·타입 (pBase + pBuffed 양쪽) ===
-    if (ar.powerMul != null && !ar.ifSheerForceMove) {
-      var cap = ar.ifBasePowerAtMost;
-      if (cap == null || pnum <= cap) {
-        var mul0 = num(ar.powerMul, 1);
-        pBase = Math.round(pBase * mul0);
-        pBuffed = Math.round(pBuffed * mul0);
-      }
+    // -스킨·노말스킨: 타입부터 바꿈 — 이후 타입 특성·도구·자속·날씨는 바뀐 타입 기준.
+    var ateMul = 1;
+    if (ar.normalizeAllMoves) {
+      moveTypeEn = 'normal';
+      ateMul = num(ar.normalizePowerMul, 1.2);
+    } else if (ar.ateType && moveTypeEn === 'normal') {
+      moveTypeEn = String(ar.ateType).toLowerCase().trim();
+      ateMul = num(ar.atePowerMul, 1.2);
     }
 
     var tags = getMoveTags(moveTagsBundle, mv, moveKoMap, moveId);
+    var abBoostT = ar.boostType != null ? String(ar.boostType).toLowerCase().trim() : '';
+    var abTypeHit = !!abBoostT && moveTypeEn === abBoostT;
 
-    var btags = ar.boostIfMoveTags;
-    if (btags && typeof btags === 'object') {
-      var need = btags.all;
-      if (Array.isArray(need) && need.length) {
+    // === Step 4: 실수치 l — 사이트처럼 배율마다 floor (특성 → 조건부 특성 → 도구) ===
+    // 강철술사·수포(typedMulOnStat)는 사이트에 없음 — Showdown 처럼 실수치 보정 자리에 둠.
+    var lBase = stat;
+    if (isPhys && ar.atkMulPhysical != null) lBase = Math.floor(lBase * num(ar.atkMulPhysical, 1));
+    if (isSpec && ar.spaMulSpecial != null) lBase = Math.floor(lBase * num(ar.spaMulSpecial, 1));
+    if (abTypeHit && ar.typedMulOnStat) lBase = Math.floor(lBase * num(ar.typedPowerMul, 1));
+    var lBuffed = lBase;
+    if (isSpec && ar.spaBoostInSun != null) lBuffed = Math.floor(lBuffed * num(ar.spaBoostInSun, 1.5));
+    if (isPhys && ar.condAtkMulPhysical != null) lBuffed = Math.floor(lBuffed * num(ar.condAtkMulPhysical, 1));
+    if (isSpec && ar.condSpaMulSpecial != null) lBuffed = Math.floor(lBuffed * num(ar.condSpaMulSpecial, 1));
+    function itemStat(l) {
+      if (isPhys && ir.atkMulPhysical != null) l = Math.floor(l * num(ir.atkMulPhysical, 1));
+      if (isSpec && ir.spaMulSpecial != null) l = Math.floor(l * num(ir.spaMulSpecial, 1));
+      return l;
+    }
+    lBase = itemStat(lBase);
+    lBuffed = itemStat(lBuffed);
+
+    // === Step 5: 위력 u — 사이트 G() 처럼 배율마다 floor. 특성은 하나라 그 안 순서는 무관 ===
+    function powerG(c, buffed) {
+      if (ar.powerMul != null && !ar.ifSheerForceMove) {
+        var cap = ar.ifBasePowerAtMost;
+        if (cap == null || c <= cap) c = Math.floor(c * num(ar.powerMul, 1));
+      }
+      var btags = ar.boostIfMoveTags;
+      if (btags && Array.isArray(btags.all) && btags.all.length) {
         var tagOk = true;
         var ti;
-        for (ti = 0; ti < need.length; ti++) {
-          if (!tags[need[ti]]) {
-            tagOk = false;
-            break;
-          }
+        for (ti = 0; ti < btags.all.length; ti++) {
+          if (!tags[btags.all[ti]]) tagOk = false;
         }
-        if (tagOk) {
-          if (btags.physicalOnly && !isPhys) tagOk = false;
-          if (btags.specialOnly && !isSpec) tagOk = false;
-          if (tagOk) {
-            var mul1 = num(btags.powerMul, 1);
-            pBase = Math.round(pBase * mul1);
-            pBuffed = Math.round(pBuffed * mul1);
-          }
-        }
+        if (btags.physicalOnly && !isPhys) tagOk = false;
+        if (btags.specialOnly && !isSpec) tagOk = false;
+        if (tagOk) c = Math.floor(c * num(btags.powerMul, 1));
       }
-    }
-
-    if (ar.ifSheerForceMove && tags.sheerForceEligible) {
-      var mul2 = num(ar.sheerForcePowerMul, 1.3);
-      pBase = Math.round(pBase * mul2);
-      pBuffed = Math.round(pBuffed * mul2);
-    }
-
-    if (ar.normalizeAllMoves) {
-      moveTypeEn = 'normal';
-      var mul3 = num(ar.normalizePowerMul, 1.2);
-      pBase = Math.round(pBase * mul3);
-      pBuffed = Math.round(pBuffed * mul3);
-    } else if (ar.ateType && moveTypeEn === 'normal') {
-      moveTypeEn = String(ar.ateType).toLowerCase().trim();
-      var mul4 = num(ar.atePowerMul, 1.2);
-      pBase = Math.round(pBase * mul4);
-      pBuffed = Math.round(pBuffed * mul4);
-    }
-
-    var abBoostT = ar.boostType != null ? String(ar.boostType).toLowerCase().trim() : '';
-    if (abBoostT && moveTypeEn === abBoostT) {
-      var mul5 = num(ar.typedPowerMul, 1);
-      pBase = Math.round(pBase * mul5);
-      pBuffed = Math.round(pBuffed * mul5);
-    }
-
-    // 메가솔라: 자기 기술엔 필드 날씨와 무관하게 항상 쾌청 — 조건부 아님(base+buffed).
-    // setsWeather 와 분리: 필드 날씨가 아니라 계산기 날씨 칸에 넣으면 안 됨.
-    var selfWeatherKey = ar.selfWeather != null ? String(ar.selfWeather).toLowerCase().trim() : '';
-    if (selfWeatherKey && WEATHER_TYPE_POWER_MUL[selfWeatherKey]) {
-      var swm = WEATHER_TYPE_POWER_MUL[selfWeatherKey][moveTypeEn];
-      if (swm != null && !isNaN(swm)) {
-        pBase = Math.round(pBase * swm);
-        pBuffed = Math.round(pBuffed * swm);
+      if (ar.ifSheerForceMove && tags.sheerForceEligible) c = Math.floor(c * num(ar.sheerForcePowerMul, 1.3));
+      if (buffed && ar.sandForce && (moveTypeEn === 'ground' || moveTypeEn === 'rock' || moveTypeEn === 'steel')) {
+        c = Math.floor(c * num(ar.sandForcePowerMul, 1.3));
       }
+      if (ateMul !== 1) c = Math.floor(c * ateMul);
+      if (abTypeHit && !ar.typedMulOnStat) c = Math.floor(c * num(ar.typedPowerMul, 1));
+      return c;
     }
 
-    // === Step 5: 특성 위력 보정 (조건부 Buffed-only) — 맹화·모래의힘·날씨·필드 ===
-    if (ar.pinchBoostType != null) {
-      var pbt = String(ar.pinchBoostType).toLowerCase().trim();
-      if (moveTypeEn === pbt) {
-        pBuffed = Math.round(pBuffed * num(ar.pinchPowerMul, 1.5));
-      }
-    }
-
-    if (ar.sandForce) {
-      if (moveTypeEn === 'ground' || moveTypeEn === 'rock' || moveTypeEn === 'steel') {
-        pBuffed = Math.round(pBuffed * num(ar.sandForcePowerMul, 1.3));
-      }
-    }
-
-    var weatherKey =
-      ar.setsWeather != null ? String(ar.setsWeather).toLowerCase().trim() : '';
-    if (weatherKey && WEATHER_TYPE_POWER_MUL[weatherKey]) {
-      var wm = WEATHER_TYPE_POWER_MUL[weatherKey][moveTypeEn];
-      if (wm != null && !isNaN(wm)) {
-        pBuffed = Math.round(pBuffed * wm);
-      }
-    }
-
-    var terrainKey =
-      ar.setsTerrain != null ? String(ar.setsTerrain).toLowerCase().trim() : '';
-    if (terrainKey && TERRAIN_TYPE_POWER_MUL[terrainKey]) {
-      var tm = TERRAIN_TYPE_POWER_MUL[terrainKey][moveTypeEn];
-      if (tm != null && !isNaN(tm)) {
-        pBuffed = Math.round(pBuffed * tm);
-      }
-    }
-
-    // === Step 6: 도구 위력 보정 (공통) — 타입·물리특수·전체 (pBase + pBuffed 양쪽) ===
-    var ir = itemRule || {};
-
-    var bt = ir.boostType != null ? String(ir.boostType).toLowerCase().trim() : '';
-    if (bt && moveTypeEn === bt) {
-      var mul6 = num(ir.typedPowerMul, 1);
-      pBase = Math.round(pBase * mul6);
-      pBuffed = Math.round(pBuffed * mul6);
-    }
-
-    if (isPhys && ir.powerMulPhysical != null) {
-      var mul7 = num(ir.powerMulPhysical, 1);
-      pBase = Math.round(pBase * mul7);
-      pBuffed = Math.round(pBuffed * mul7);
-    }
-    if (isSpec && ir.powerMulSpecial != null) {
-      var mul8 = num(ir.powerMulSpecial, 1);
-      pBase = Math.round(pBase * mul8);
-      pBuffed = Math.round(pBuffed * mul8);
-    }
-    if (ir.powerMul != null) {
-      var mul9 = num(ir.powerMul, 1);
-      pBase = Math.round(pBase * mul9);
-      pBuffed = Math.round(pBuffed * mul9);
-    }
-
-    // === Step 6.5: 무조건 급소 기술 — 처음부터(base/buffed 둘 다) 반영, 조건부 아님 ===
-    if (tags.alwaysCrit) {
-      pBase = Math.round(pBase * CRIT_POWER_MUL);
-      pBuffed = Math.round(pBuffed * CRIT_POWER_MUL);
-    }
-
-    // === Step 7: STAB → 스탯 실수치 × 배율 → 최종배율 ===
+    // === Step 6: 최종 배율 d — floor 없이 곱. 부동소수 결과를 사이트와 맞추려고 곱하는 순서도 사이트대로 ===
     var stab = false;
-    if (speciesTypesEn && speciesTypesEn.length) {
-      var i;
-      for (i = 0; i < speciesTypesEn.length; i++) {
-        if (speciesTypesEn[i] === moveTypeEn) {
-          stab = true;
-          break;
-        }
+    var i;
+    for (i = 0; speciesTypesEn && i < speciesTypesEn.length; i++) {
+      if (speciesTypesEn[i] === moveTypeEn) stab = true;
+    }
+    var itemTypes = ir.boostType == null ? [] : [].concat(ir.boostType);
+    var selfWeatherKey = ar.selfWeather != null ? String(ar.selfWeather).toLowerCase().trim() : '';
+    var weatherKey = ar.setsWeather != null ? String(ar.setsWeather).toLowerCase().trim() : '';
+    var terrainKey = ar.setsTerrain != null ? String(ar.setsTerrain).toLowerCase().trim() : '';
+    function finalMul(buffed) {
+      var d = 1;
+      // 변환자재/리베로: 자연 타입이 안 맞아도 buffed 에서는 자속(자연 STAB 이면 이미 true 라 중복 안 됨).
+      if (stab || (buffed && ar.alwaysStab === true)) d *= num(ar.stabMul, 1.5);
+      if (ir.finalDamageMul != null) d *= num(ir.finalDamageMul, 1);
+      if (isPhys && ir.powerMulPhysical != null) d *= num(ir.powerMulPhysical, 1);
+      if (isSpec && ir.powerMulSpecial != null) d *= num(ir.powerMulSpecial, 1);
+      if (ir.powerMul != null) d *= num(ir.powerMul, 1);
+      if (buffed && ar.pinchBoostType != null && moveTypeEn === String(ar.pinchBoostType).toLowerCase().trim()) {
+        d *= num(ar.pinchPowerMul, 1.5);
       }
+      if (itemTypes.indexOf(moveTypeEn) !== -1) d *= num(ir.typedPowerMul, 1);
+      // 메가솔라(selfWeather)는 조건부 아님 — base 에도. 날씨 깔기(setsWeather)는 buffed 만.
+      var wk = selfWeatherKey || (buffed ? weatherKey : '');
+      var wm = WEATHER_TYPE_POWER_MUL[wk] && WEATHER_TYPE_POWER_MUL[wk][moveTypeEn];
+      if (wm != null) d *= wm;
+      var tm = buffed && TERRAIN_TYPE_POWER_MUL[terrainKey] && TERRAIN_TYPE_POWER_MUL[terrainKey][moveTypeEn];
+      if (tm) d *= tm;
+      if (tags.alwaysCrit) d *= CRIT_POWER_MUL;
+      // 재앙의검/구슬: 사이트 support 와 같은 자리. 포톤게이저는 유효 물리/특수 기준.
+      if (isPhys && ar.movePowerFoeDefenseRuinMul != null) d *= num(ar.movePowerFoeDefenseRuinMul, 1);
+      if (isSpec && ar.movePowerFoeSpDefenseRuinMul != null) d *= num(ar.movePowerFoeSpDefenseRuinMul, 1);
+      return d;
     }
-    var stabMul = num(ar.stabMul, 1.5);
-    var adjBase = stab ? Math.round(pBase * stabMul) : pBase;
-    // 변환자재/리베로: 자연 타입이 안 맞아도 buffed 에서는 자속 반영(자연 STAB 이면 이미 true 라 중복 안 됨).
-    var stabBuffed = stab || ar.alwaysStab === true;
-    var adjBuffed = stabBuffed ? Math.round(pBuffed * stabMul) : pBuffed;
 
-    // ───────── 스탯 곱 (조건부 spaBoostInSun 만 Buffed 에) ─────────
-    var atkM = num(ir.atkMulPhysical, 1) * num(ar.atkMulPhysical, 1);
-    var spaMBase = num(ir.spaMulSpecial, 1) * num(ar.spaMulSpecial, 1);
-    var spaMBuffed = spaMBase;
-    if (ar.spaBoostInSun != null && isSpec) {
-      spaMBuffed *= num(ar.spaBoostInSun, 1.5);
+    // === Step 7: floor(u*l*d) × 타수 — 트리플악셀·트리플킥 = 단계 합, 부자유친 = 사이트 pokeRound ===
+    var tagRow = moveTagsBundle && moveTagsBundle.moves ? moveTagsBundle.moves[moveId] : null;
+    var multihit = tagRow && tagRow.multihit;
+    var hits = Array.isArray(multihit) ? multihit[1] : multihit > 0 ? multihit : 1;
+    var steps = moveId === 'tripleaxel' ? [20, 40, 60] : moveId === 'triplekick' ? [10, 20, 30] : null;
+    function total(l, buffed) {
+      var d = finalMul(buffed);
+      if (steps) {
+        var sum = 0;
+        var k;
+        for (k = 0; k < steps.length && k < hits; k++) sum += Math.floor(powerG(steps[k], buffed) * l * d);
+        return sum;
+      }
+      var L = Math.floor(powerG(pnum, buffed) * l * d);
+      if (ar.parentalBond && !multihit) return L + pokeRound(L, 0.25);
+      return L * hits;
     }
-    var statMulBase = isPhys ? atkM : spaMBase;
-    var statMulBuffed = isPhys ? atkM : spaMBuffed;
 
-    // ───────── 최종 (공통) ─────────
-    var fin = num(ir.finalDamageMul, 1) * num(ar.finalDamageMul, 1);
-    var finalBase = Math.round(adjBase * stat * statMulBase * fin);
-    var finalBuffed = Math.round(adjBuffed * stat * statMulBuffed * fin);
-
-    return { base: finalBase, buffed: finalBuffed, cls: cls };
+    return { base: total(lBase, false), buffed: total(lBuffed, true), cls: cls };
   }
 
   /**
@@ -483,6 +414,7 @@
     // C3: SR.str() 로 equipment/ability 정규화 — 문자열/객체 양쪽 진입 통일.
     var flat = SR.flattenSlot(slotData);
     var itemRule = findItemRule(rules || {}, SR.str(flat.equipment || flat.item || flat.Item || flat.hold));
+    if (!FC.ruleFitsSpecies(itemRule, SR.speciesNameLine(flat))) itemRule = null;
     var abilityRule = findAbilityRule(rules || {}, SR.str(flat.ability || flat.ab || flat.Ability));
 
     var stats = poke.stats || {};
@@ -517,25 +449,7 @@
         moveKoMap,
         moveId
       );
-      if (pair == null) {
-        out[i] = null;
-        continue;
-      }
-      var ar0 = abilityRule || {};
-      var cls0 = effectiveDamageClassForRuin(mv, atk, spa, moveKoMap, moveId);
-      var ruinM = 1;
-      if (cls0 === 'physical') {
-        ruinM = num(ar0.movePowerFoeDefenseRuinMul, 1);
-      } else if (cls0 === 'special') {
-        ruinM = num(ar0.movePowerFoeSpDefenseRuinMul, 1);
-      }
-      var buffed = pair.buffed;
-      var baseVal = pair.base;
-      if (ruinM !== 1) {
-        buffed = Math.round(buffed * ruinM);
-        baseVal = Math.round(baseVal * ruinM);
-      }
-      out[i] = { base: baseVal, buffed: buffed, cls: pair.cls };
+      out[i] = pair;
     }
     return out;
   }
