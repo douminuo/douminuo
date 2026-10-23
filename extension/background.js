@@ -207,9 +207,9 @@ importScripts('showdownPaste.js');
   }
 
   /**
-   * 파티 전체: POST /api/party/share (동일 path), 본문 { params: { data: { all: true, data: (6칸, 빈칸 null) } } }.
-   * 응답 { id } → #ps= (단일 슬롯과 동일). 단일 슬롯: { params: { data: { slot, data } } }.
-   * 조사: 2026-04 유저 DevTools 캡처.
+   * 파티 전체: POST /api/party/share (동일 path), 본문 { data: { all: true, data: (6칸, 빈칸 null) } }.
+   * 응답 { id } → #ps= (단일 슬롯과 동일). 단일 슬롯: { data: { slot, data } }.
+   * 사이트 현행 본문과 동일 (2026-10 번들 BFJqrx6L — 옛 2026-04 캡처는 { params: { data } } 래핑).
    */
   function postSharePartyAll(origin, pathname, slotsSix) {
     if (!Array.isArray(slotsSix) || slotsSix.length !== 6) {
@@ -242,11 +242,9 @@ importScripts('showdownPaste.js');
       },
       credentials: 'include',
       body: JSON.stringify({
-        params: {
-          data: {
-            all: true,
-            data: row,
-          },
+        data: {
+          all: true,
+          data: row,
         },
       }),
     }).then(function (res) {
@@ -284,9 +282,7 @@ importScripts('showdownPaste.js');
       },
       credentials: 'include',
       body: JSON.stringify({
-        params: {
-          data: { slot: slotIndex1Based, data: slotData },
-        },
+        data: { slot: slotIndex1Based, data: slotData },
       }),
     })
       .then(function (res) {
