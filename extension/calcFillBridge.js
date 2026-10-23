@@ -8,8 +8,8 @@
  * 본 파일이 NUO_CALC_RESULT 로 응답한다. 프로토콜 유지.
  */
 (function () {
-  if (window.__NUO_CALC_BRIDGE_V38__) return;
-  window.__NUO_CALC_BRIDGE_V38__ = true;
+  if (window.__NUO_CALC_BRIDGE_V39__) return;
+  window.__NUO_CALC_BRIDGE_V39__ = true;
 
   var KEY_POKE_LIST = '$spokemon_list';
   var KEY_ATT = '$scalculator.attacker';
@@ -96,11 +96,6 @@
     return n;
   }
 
-  function num(x) {
-    var n = parseInt(String(x), 10);
-    return isNaN(n) ? 0 : n;
-  }
-
   /**
    * @returns {object|null}
    */
@@ -158,20 +153,6 @@
     var k = String(species || '').trim();
     if (!k) return null;
     return pokeIxByKr[k] || pokeIxByEn[k.toLowerCase()] || null;
-  }
-
-  function deriveSprite(entry) {
-    if (!entry || typeof entry !== 'object') return '';
-    if (entry.sprite) return String(entry.sprite);
-    var id = entry.id != null ? entry.id : entry.smogon_id;
-    if (id != null) {
-      return (
-        'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/' +
-        num(id) +
-        '.png'
-      );
-    }
-    return '';
   }
 
   function defaultEvsIvs(evs, ivs) {
@@ -391,9 +372,8 @@
       return { ok: false, error: page === 'speed' ? 'species_not_in_speed_dex' : 'species_not_in_dex' };
     }
 
+    // types·stats·sprite 는 사이트 name watcher 가 채움.
     att.name = entry;
-    if (entry.types) att.types = entry.types;
-    att.sprite = deriveSprite(entry);
 
     var eiA = defaultEvsIvs(pa.evs, pa.ivs);
     if (page === 'speed') {
@@ -408,25 +388,14 @@
     var ap = page === 'speed' ? pa.personality : pa.attackerPersonality;
     if (ap === 0.9 || ap === 1 || ap === 1.1) att.personality = ap;
 
-    // move 를 ability/equipment 보다 먼저 set — 그 다음 microtask 에서 move+ability 재주입으로 Vue 배치 후 재평가 유도.
-    var moveObj = null;
+    // type·power·damage_class 는 사이트 move watcher 도 채우지만, 도감 row 없는 폴백(name '') 이면 watcher 가 안 돌아 직접 넣어 둠.
     if (page !== 'speed' && pa.attackerMove) {
       var row = findMoveRow(state, pa.attackerMove);
-      moveObj = buildMoveObject(row, pa.attackerMove, physAtk);
-      att.move = moveObj;
+      att.move = buildMoveObject(row, pa.attackerMove, physAtk);
     }
     var dexSide = page === 'speed' ? 'speed' : false;
-    var abilityObj = lookupAbilityObj(state, pa.abilityKo, dexSide);
-    var equipmentObj = lookupEquipmentObj(state, pa.itemKo, dexSide);
-    att.ability = abilityObj;
-    att.equipment = equipmentObj;
-
-    Promise.resolve().then(function () {
-      try {
-        if (moveObj) att.move = Object.assign({}, moveObj);
-        att.ability = Object.assign({}, abilityObj);
-      } catch (eKick) {}
-    });
+    att.ability = lookupAbilityObj(state, pa.abilityKo, dexSide);
+    att.equipment = lookupEquipmentObj(state, pa.itemKo, dexSide);
 
     return { ok: true };
   }
@@ -440,8 +409,6 @@
     }
 
     def.name = entry;
-    if (entry.types) def.types = entry.types;
-    def.sprite = deriveSprite(entry);
 
     var eiD = defaultEvsIvs(pd.evs, pd.ivs);
     if (page === 'speed') {
@@ -460,19 +427,8 @@
     if (dp === 0.9 || dp === 1 || dp === 1.1) def.personality = dp;
 
     var dexSideDef = page === 'speed' ? 'speed' : true;
-    var defAbility = lookupAbilityObj(state, pd.abilityKo, dexSideDef);
-    var defEquipment = lookupEquipmentObj(state, pd.itemKo, dexSideDef);
-    def.ability = defAbility;
-    def.equipment = defEquipment;
-
-    Promise.resolve().then(function () {
-      try {
-        def.ability = Object.assign({}, defAbility);
-        if (defEquipment && typeof defEquipment === 'object') {
-          def.equipment = Object.assign({}, defEquipment);
-        }
-      } catch (eKickDef) {}
-    });
+    def.ability = lookupAbilityObj(state, pd.abilityKo, dexSideDef);
+    def.equipment = lookupEquipmentObj(state, pd.itemKo, dexSideDef);
 
     return { ok: true };
   }
