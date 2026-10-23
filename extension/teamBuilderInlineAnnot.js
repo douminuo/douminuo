@@ -314,9 +314,10 @@
     if (!isSmartnuoHost()) return;
     if (!tbInlineAnyEnabled()) return;
     clearTimeout(tbInlineTimer);
+    // 연속 변화 묶기용. 한 사이클 ≈10ms·사이트 카드 갱신 ≈6ms (2026-10-23 실측) — 옛 520ms 는 근거 없음.
     tbInlineTimer = setTimeout(function () {
       runTeamBuilderInlineAnnotate();
-    }, 520);
+    }, 50);
   }
 
   function tbReconnectMo() {
