@@ -302,24 +302,13 @@
   }
 
   /**
-   * 팀빌더 좌측 슬롯 리스트 컨테이너 — 카드 XPath·MO 가드 등에서 공용.
+   * 팀빌더 좌측 슬롯 리스트 컨테이너 — 카드 찾기·MO 가드 등에서 공용.
+   * 사이트가 이미지 캡처용으로 단 `[data-capture-area]` (자식 = [헤더, 슬롯1..6]).
    * DOM 구조 변경 시 teamBuilderInlineAnnot 의 findSlotCardByIndex 와 같이 갱신.
    * @returns {Element|null}
    */
   function getTbSlotListRoot() {
-    try {
-      return (
-        document.evaluate(
-          '/html/body/div[1]/div/main/div/div[1]/div/div',
-          document,
-          null,
-          XPathResult.FIRST_ORDERED_NODE_TYPE,
-          null
-        ).singleNodeValue || null
-      );
-    } catch (e) {
-      return null;
-    }
+    return document.querySelector('[data-capture-area]');
   }
 
   /**
