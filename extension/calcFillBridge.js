@@ -8,8 +8,8 @@
  * 본 파일이 NUO_CALC_RESULT 로 응답한다. 프로토콜 유지.
  */
 (function () {
-  if (window.__NUO_CALC_BRIDGE_V39__) return;
-  window.__NUO_CALC_BRIDGE_V39__ = true;
+  if (window.__NUO_CALC_BRIDGE_V40__) return;
+  window.__NUO_CALC_BRIDGE_V40__ = true;
 
   var KEY_POKE_LIST = '$spokemon_list';
   var KEY_ATT = '$scalculator.attacker';
@@ -89,10 +89,11 @@
     return mapped || speciesKo;
   }
 
-  function clampEv(n) {
+  /** 사이트 effort 단위 = 챔피언스 SP 0..32 (슬롯 stats.*.value 그대로). */
+  function clampSp(n) {
     n = n | 0;
     if (n < 0) return 0;
-    if (n > 252) return 252;
+    if (n > 32) return 32;
     return n;
   }
 
@@ -377,10 +378,10 @@
 
     var eiA = defaultEvsIvs(pa.evs, pa.ivs);
     if (page === 'speed') {
-      att.effort = clampEv(eiA.evs[5]);
+      att.effort = clampSp(eiA.evs[5]);
       att.individual_value = eiA.ivs[5] | 0;
     } else {
-      att.effort = clampEv(physAtk ? eiA.evs[1] : eiA.evs[3]);
+      att.effort = clampSp(physAtk ? eiA.evs[1] : eiA.evs[3]);
       att.individual_value = physAtk ? eiA.ivs[1] | 0 : eiA.ivs[3] | 0;
     }
     if (pa.level != null && pa.level > 0) att.level = pa.level | 0;
@@ -412,12 +413,12 @@
 
     var eiD = defaultEvsIvs(pd.evs, pd.ivs);
     if (page === 'speed') {
-      def.effort = clampEv(eiD.evs[5]);
+      def.effort = clampSp(eiD.evs[5]);
       def.individual_value = eiD.ivs[5] | 0;
     } else {
-      def.hp_effort = clampEv(eiD.evs[0]);
+      def.hp_effort = clampSp(eiD.evs[0]);
       def.hp_individual_value = eiD.ivs[0] | 0;
-      def.effort = clampEv(physInc ? eiD.evs[2] : eiD.evs[4]);
+      def.effort = clampSp(physInc ? eiD.evs[2] : eiD.evs[4]);
       def.individual_value = physInc ? eiD.ivs[2] | 0 : eiD.ivs[4] | 0;
     }
 
