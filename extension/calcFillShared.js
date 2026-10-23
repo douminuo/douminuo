@@ -50,11 +50,9 @@
   /**
    * 콘텐츠 스크립트 isolated world 의 history 와 MAIN world 의 history 는 별개 객체이므로
    * isolated 측에서 monkey-patch 를 걸어도 사이트 라우터(MAIN)의 pushState 는 못 잡는다.
-   * Vue Router 류의 pushState 는 popstate 도 발생시키지 않으므로 가장 안전·저비용 방안은
-   * pathname 폴링. 비용: 500ms 마다 location.pathname read 한 번.
-   *
-   * 추가로 popstate/hashchange/visibilitychange 에서도 즉시 체크 — full reload 가 아닌 일반
-   * 브라우저 탐색에서는 이쪽이 폴링보다 먼저 발생.
+   * 주 신호 = MAIN 의 Nuxt `page:finish` 훅이 보내는 NUO_PAGE_FINISH_V1 (background.js waitNuxtHydratedInPage).
+   * 그 외 popstate/hashchange/visibilitychange 즉시 체크 + 폴백으로 injectTick(400ms) 마다 pathname 비교
+   * (사이트 훅이 바뀌어도 라우트 감지는 유지).
    */
   var lastPathSeen = (function () {
     try { return location.pathname || '/'; } catch (eInit) { return '/'; }
@@ -83,7 +81,12 @@
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) checkPathChange();
     });
-    setInterval(checkPathChange, 500);
+    window.addEventListener('message', function (ev) {
+      var d = ev.data;
+      if (ev.source !== window || !d || d.source !== 'nuo-route-page' || d.type !== 'NUO_PAGE_FINISH_V1') return;
+      checkPathChange();
+      injectTick(); // 새 페이지 DOM 이 이미 있음 — 400ms 기다리지 않고 바로 앵커 삽입
+    });
   } catch (eWire) {}
 
   /**
@@ -303,6 +306,7 @@
       injectTimer = null;
       return;
     }
+    checkPathChange(); // 라우트 감지 폴백 (page:finish 신호가 안 올 때)
     for (i = 0; i < injectSpecs.length; i++) syncInjected(injectSpecs[i]);
   }
 

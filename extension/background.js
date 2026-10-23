@@ -741,6 +741,8 @@ importScripts('showdownPaste.js');
    * MAIN world 에서 실행 — Nuxt 가 SSR 화면 hydration 을 끝낼 때까지 대기 (최대 10초).
    * 그 전에 사이트 DOM 에 우리 host 를 끼우면 Vue 가 불일치로 판단해 화면이 뒤엉킴 (2026-09-24 재현:
    * 계산기 새로고침 5회 중 3회 "Hydration completed but contains mismatches", 확장 없는 브라우저 9회 중 0회).
+   * 겸사: 사이트 라우트 이동이 끝날 때(Nuxt `page:finish` — 새 페이지 DOM 이 이미 있음) 콘텐츠 스크립트에
+   * NUO_PAGE_FINISH_V1 을 보냄 (calcFillShared 가 받아 경로 판정·앵커 삽입). 페이지당 1회만 등록.
    */
   function waitNuxtHydratedInPage() {
     return new Promise(function (resolve) {
@@ -748,6 +750,12 @@ importScripts('showdownPaste.js');
       (function poll() {
         var el = document.getElementById('__nuxt');
         var nx = el && el.__vue_app__ && el.__vue_app__.$nuxt;
+        if (nx && typeof nx.hook === 'function' && !window.__NUO_PAGE_FINISH_HOOK_V1__) {
+          window.__NUO_PAGE_FINISH_HOOK_V1__ = true;
+          nx.hook('page:finish', function () {
+            window.postMessage({ source: 'nuo-route-page', type: 'NUO_PAGE_FINISH_V1' }, '*');
+          });
+        }
         if ((nx && nx.isHydrating === false) || Date.now() - t0 > 10000) { resolve(true); return; }
         setTimeout(poll, 50);
       })();
