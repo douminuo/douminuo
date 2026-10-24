@@ -3,7 +3,6 @@
   'use strict';
 
   var FC = global.nuoFmtCommon;
-  var readLabel = FC.readLabel;
   var normalizeMatchKey = FC.normalizeMatchKey;
 
   var STAT_MAP = [

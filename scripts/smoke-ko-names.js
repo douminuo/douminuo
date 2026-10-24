@@ -70,9 +70,9 @@ const paste = (slot) =>
     natureKoDoc: readExt('natureKoMap.json'),
     typeKoDoc: readExt('typeKoMap.json'),
   });
-const out = paste({ name: 'farfetchd', equipment: '대파', ability: '가시지않는향기', moves: [] });
+const out = paste({ pokemon: { name: 'farfetchd', equipment: '대파', ability: '가시지않는향기', moves: [] } });
 assert(out.indexOf('Farfetchd @ Leek') === 0 && out.indexOf('Ability: Lingering Aroma') > 0, 'Showdown 도구·특성: ' + out);
-const outMoves = paste({ pokemon: { name: 'garchomp', moves: [{ name_kr: '지진' }, { name_kr: '드래곤클로' }, { name_kr: '모르는기술' }] }, equipment: '라이츄나이트X' });
+const outMoves = paste({ pokemon: { name: 'garchomp', equipment: '라이츄나이트X', moves: [{ name_kr: '지진' }, { name_kr: '드래곤클로' }, { name_kr: '모르는기술' }] } });
 assert(/@ Raichunite X/.test(outMoves) && /- Earthquake/.test(outMoves) && /- Dragon Claw/.test(outMoves) && /- 모르는기술/.test(outMoves), 'Showdown 기술: ' + outMoves);
 
 console.log('smoke-ko-names: ok');

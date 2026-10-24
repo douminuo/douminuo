@@ -1,3 +1,4 @@
+importScripts('slotRead.js');
 importScripts('shareToRaw.js');
 importScripts('fmtCommon.js');
 importScripts('koNames.js');
@@ -15,6 +16,7 @@ importScripts('showdownPaste.js');
   'use strict';
 
   var SR = globalThis.shareToRaw;
+  var SL = globalThis.nuoSlotRead;
   var SMP = globalThis.simpleMovePower;
   var AFO = globalThis.attackerFormOverride;
 
@@ -250,7 +252,7 @@ importScripts('showdownPaste.js');
     var i;
     for (i = 0; i < 6; i++) {
       var s = slotsSix[i];
-      if (SR.isSlotEmpty(s)) {
+      if (SL.isEmpty(s)) {
         row.push(null);
       } else {
         anyFilled = true;
@@ -302,8 +304,8 @@ importScripts('showdownPaste.js');
 
   function postShareSlot(origin, pathname, slotIndex1Based, slotData) {
     // 빈/무효 슬롯은 어떤 누오 호출도 가지 않는다 (어머니 사이트 보호 원칙 §A.2 #3).
-    // 단순 null 또는 {}만이 아니라 {slot:1, data:null} 같은 메타-only 케이스도 SR.isSlotEmpty가 잡는다.
-    if (SR.isSlotEmpty(slotData)) return Promise.resolve('');
+    // 단순 null 또는 {}만이 아니라 pokemon.name 없는 메타-only 칸도 SL.isEmpty 가 잡는다.
+    if (SL.isEmpty(slotData)) return Promise.resolve('');
     return fetch(origin + '/api/party/share', {
       method: 'POST',
       headers: {
@@ -356,7 +358,7 @@ importScripts('showdownPaste.js');
   function collectTypesFromSlotPokemon(poke) {
     if (!poke) return [];
     var out = [];
-    [poke.firstType, poke.secondType, poke.first_type, poke.second_type].forEach(function (t) {
+    [poke.first_type, poke.second_type].forEach(function (t) {
       if (t == null || t === '') return;
       var e = SMP.normalizeTypeToEn(t);
       if (e && out.indexOf(e) < 0) out.push(e);
@@ -379,12 +381,11 @@ importScripts('showdownPaste.js');
    * §A.4 보호 원칙: (3)은 평소 발동되지 않아야 한다.
    */
   function resolveSpeciesTypesForSlot(slotData) {
-    var poke = slotData && slotData.pokemon;
-    var local = collectTypesFromSlotPokemon(poke);
+    var local = collectTypesFromSlotPokemon(SL.mon(slotData));
     if (local.length >= 2) return Promise.resolve(local);
-    if (!poke || !poke.name) return Promise.resolve(local);
+    var slug = SL.speciesSlug(slotData);
+    if (!slug) return Promise.resolve(local);
 
-    var slug = String(poke.name).toLowerCase();
     return ensurePokemonTypeMapLoaded().then(function (bundle) {
       var bySlug = bundle && bundle.bySlug;
       if (bySlug && Array.isArray(bySlug[slug]) && bySlug[slug].length) {
@@ -392,7 +393,7 @@ importScripts('showdownPaste.js');
         return merged.length ? merged : local;
       }
       // 번들 미커버 → PokéAPI fallback (드물게 발생)
-      return fetchPokemonTypesEn(poke.name).then(function (apiTypes) {
+      return fetchPokemonTypesEn(slug).then(function (apiTypes) {
         var merged = mergeTypeLists(local, apiTypes);
         return merged.length ? merged : local;
       });
@@ -400,7 +401,7 @@ importScripts('showdownPaste.js');
   }
 
   function computeBlockPowersForSlot(slotData) {
-    if (SR.isSlotEmpty(slotData)) {
+    if (SL.isEmpty(slotData)) {
       return Promise.resolve({
         movePowers: [null, null, null, null],
         speciesTypesEn: [],
@@ -612,7 +613,7 @@ importScripts('showdownPaste.js');
     if (slotIndex < 1 || slotIndex > 6) {
       return Promise.reject(new Error('bad_index'));
     }
-    if (!slotData || SR.isSlotEmpty(slotData)) {
+    if (!slotData || SL.isEmpty(slotData)) {
       return Promise.reject(new Error('empty_slot'));
     }
 
@@ -807,7 +808,7 @@ importScripts('showdownPaste.js');
 
     if (msg.type === 'ANNOTATE_BUILDER_SLOT') {
       var slotAn = msg.slotData;
-      if (!slotAn || SR.isSlotEmpty(slotAn)) {
+      if (!slotAn || SL.isEmpty(slotAn)) {
         sendResponse({
           ok: true,
           empty: true,
@@ -822,11 +823,10 @@ importScripts('showdownPaste.js');
           return loadKoNames().then(function (names) {
             var MPS = globalThis.movePowerSuffixFormatter;
             var reals = SR.realByLetterFromSlot(slotAn);
-            var flat = SR.flattenSlot(slotAn);
-            var itemRaw = SR.str(flat.equipment || flat.item || flat.Item || flat.hold);
-            var abilityRaw = SR.str(flat.ability || flat.ab || flat.Ability);
-            var titleCtx =
-              SR.str(SR.titleRest(flat)) + '\n' + SR.str(SR.speciesNameLine(flat));
+            var itemRaw = SL.item(slotAn);
+            var abilityRaw = SL.ability(slotAn);
+            var speciesKo = SL.speciesKo(slotAn);
+            var titleCtx = SL.sampleName(slotAn) + '\n' + speciesKo;
             // F42 (2026-05-24): 두 포맷이 같은 comp 를 공유 — 옛 코드는 두 번 계산했음.
             var CBP = globalThis.computeBulkPhysSpecBuffed;
             var FBLC = globalThis.formatBulkLinesFromComp;
@@ -836,7 +836,7 @@ importScripts('showdownPaste.js');
               typeof CBP === 'function'
                 ? CBP(reals, names, itemRaw, abilityRaw, titleCtx, pack.speciesTypesEn, {
                     excludeConditionalAbilities: true,
-                    speciesName: SR.str(SR.speciesNameLine(flat)),
+                    speciesName: speciesKo,
                   })
                 : null;
             var bulkText = typeof FBLC === 'function' ? FBLC(comp) || '' : '';
@@ -877,7 +877,7 @@ importScripts('showdownPaste.js');
       }
       var slotIn = msg.slot;
       var sideIn = msg.side === 'defender' ? 'defender' : 'attacker';
-      if (!slotIn || typeof slotIn !== 'object' || SR.isSlotEmpty(slotIn)) {
+      if (!slotIn || typeof slotIn !== 'object' || SL.isEmpty(slotIn)) {
         sendResponse({ ok: false, error: mapShareError(new Error('empty_slot')) });
         return true;
       }
@@ -908,7 +908,7 @@ importScripts('showdownPaste.js');
         (function () {
           var j;
           for (j = 0; j < 6; j++) {
-            if (!SR.isSlotEmpty(slotsCp[j])) return true;
+            if (!SL.isEmpty(slotsCp[j])) return true;
           }
           return false;
         })();

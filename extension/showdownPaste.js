@@ -1,17 +1,10 @@
-/* Pokemon Showdown / PokePaste 스타일 (shareToRaw + 맵 JSON) */
+/* Pokemon Showdown / PokePaste 스타일 (slotRead + 맵 JSON) */
 (function (global) {
   'use strict';
 
-  var SR = global.shareToRaw;
+  var SL = global.nuoSlotRead;
   var FC = global.nuoFmtCommon;
-  var readLabel = FC.readLabel;
   var normalizeMatchKey = FC.normalizeMatchKey;
-
-  function asInt(v) {
-    if (v === null || v === undefined || v === '') return null;
-    var n = parseInt(String(v), 10);
-    return isNaN(n) ? null : n;
-  }
 
   function slugToDisplayName(slug) {
     if (!slug) return '';
@@ -39,35 +32,11 @@
       .join('-');
   }
 
-  function speciesEnglishFromSlot(s) {
-    var poke = s.pokemon || s.mon || s.poke;
-    if (poke && typeof poke === 'object') {
-      // 사이트 리뉴얼 이후 신규 샘플: poke.name = { id, smogon_id, db_en, kr, ... } 객체.
-      // db_en 우선(하이픈 보존, 예: 'aegislash-shield'), 없으면 smogon_id / id(둘 다 하이픈 없음).
-      // attackerFormOverride.js · teamBuilderBridge.js 가 동일한 객체 모양을 가정.
-      if (poke.name && typeof poke.name === 'object') {
-        var en = String(poke.name.db_en || poke.name.smogon_id || poke.name.id || '').trim();
-        if (en && /^[a-z0-9-]+$/i.test(en)) return formatSpeciesFromSlug(en);
-      }
-      // 옛 URL 샘플: poke.name = 영문 slug 문자열.
-      if (typeof poke.name === 'string') {
-        var pn = poke.name.trim();
-        if (/^[a-z0-9-]+$/i.test(pn)) return formatSpeciesFromSlug(pn);
-      }
-    }
-    if (typeof s.name === 'string') {
-      var sn = s.name.trim();
-      if (/^[a-z0-9-]+$/i.test(sn)) return formatSpeciesFromSlug(sn);
-    }
-    return readLabel(s.nameKr || s.speciesName || s.speciesKo || s.species) || '';
-  }
-
   /** 도구·특성 라벨 → Showdown 영문 표시명. 못 풀면 라벨 그대로 (kind = names.item | names.ability). */
   function resolveHoldEn(kind, raw) {
     var slug = kind(raw);
     if (slug) return slugToDisplayName(slug);
-    var lab = readLabel(raw);
-    return lab === '--' ? '' : lab;
+    return raw === '--' ? '' : raw;
   }
 
   function natureToEnglish(raw, koToSlug) {
@@ -135,17 +104,6 @@
     return t;
   }
 
-  function getLevel(flat) {
-    var poke = flat.pokemon || flat.mon || flat.poke;
-    return (
-      asInt(flat.level) ||
-      asInt(flat.lv) ||
-      (poke && asInt(poke.level)) ||
-      (poke && asInt(poke.lv)) ||
-      null
-    );
-  }
-
   /** 종목당 0~32, 합 ≤66. 초과 시 Spe→HP 순으로 깎음. */
   function clampNuoBoostsSix(raw) {
     var b = [];
@@ -171,27 +129,25 @@
   }
 
   function oneSet(slot, ctx) {
-    if (!SR || typeof SR.isSlotEmpty !== 'function' || SR.isSlotEmpty(slot)) return '';
-    var s = SR.flattenSlot(slot);
-    var species = speciesEnglishFromSlot(s);
-    if (!species) species = 'Pokemon';
+    if (SL.isEmpty(slot)) return '';
+    var slug = SL.speciesSlug(slot);
+    var species = slug ? formatSpeciesFromSlug(slug) : 'Pokemon';
 
-    var itemStr = resolveHoldEn(ctx.names.item, SR.str(s.equipment || s.item || s.Item || s.hold));
+    var itemStr = resolveHoldEn(ctx.names.item, SL.item(slot));
     var head = itemStr ? species + ' @ ' + itemStr : species;
 
     var lines = [head];
-    var ab = resolveHoldEn(ctx.names.ability, SR.str(s.ability || s.ab || s.Ability));
+    var ab = resolveHoldEn(ctx.names.ability, SL.ability(slot));
     if (ab) lines.push('Ability: ' + ab);
 
-    var lv = getLevel(s);
-    if (lv != null && lv > 0) lines.push('Level: ' + lv);
+    var lv = SL.level(slot);
+    if (lv) lines.push('Level: ' + lv);
 
-    var nat = natureToEnglish(readLabel(s.personality || s.nature || s.Nature), ctx.koToSlugNature);
+    var nat = natureToEnglish(SL.nature(slot), ctx.koToSlugNature);
     if (nat) lines.push(nat + ' Nature');
 
     /* EV 줄: 챔피언스 SP 그대로 — Showdown champions 모드·Smogon 세트가 `EVs:` 줄에 SP(0~32) 를 씀 (2026-10 확인). */
-    var nuoEvs = typeof SR.getEvValuesSix === 'function' ? SR.getEvValuesSix(s) : [0, 0, 0, 0, 0, 0];
-    var evs = clampNuoBoostsSix(nuoEvs);
+    var evs = clampNuoBoostsSix(SL.spSix(slot));
     var abbr = ['HP', 'Atk', 'Def', 'SpA', 'SpD', 'Spe'];
     var evParts = [];
     var ei;
@@ -200,13 +156,10 @@
     }
     if (evParts.length) lines.push('EVs: ' + evParts.join(' / '));
 
-    var ter =
-      typeof SR.teraLine === 'function'
-        ? SR.teraLine(s)
-        : String(s.terastal || s.tera || s.teraType || '').trim();
+    var ter = SL.tera(slot);
     if (ter && !shouldOmitTerastal(ter)) lines.push('Tera Type: ' + formatTeraType(ter, ctx.typeKoDoc));
 
-    var moves = SR.getMoves ? SR.getMoves(slot) : ['', '', '', ''];
+    var moves = SL.moves(slot);
     var mi;
     for (mi = 0; mi < 4; mi++) {
       var en = moveToEnglish(ctx.names, ctx.compactMove, moves[mi]);
@@ -222,7 +175,6 @@
    *   koNames = koNames.forDocs(...) 해석기 (도구·특성·기술)
    */
   function buildShowdownPaste(slots, opts) {
-    if (!SR) return '';
     opts = opts || {};
     var moveEn = (opts.moveSlugToEnDoc && opts.moveSlugToEnDoc.bySlug) || {};
     var natDoc = opts.natureKoDoc || {};

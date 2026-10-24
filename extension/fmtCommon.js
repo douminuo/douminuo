@@ -1,19 +1,9 @@
 /**
- * formatter.js · simpleMovePower.js · showdownPaste.js · koNames.js 공통: 라벨 읽기·종 한정 도구 판정.
- * 도구·특성·기술 이름 → slug·규칙 = koNames.js. SW: fmtCommon → koNames → … 순서.
+ * formatter.js · simpleMovePower.js · showdownPaste.js 공통: 이름 비교 키·종 한정 도구 판정.
+ * 라벨 읽기 = slotRead.js, 도구·특성·기술 이름 → slug·규칙 = koNames.js. SW: slotRead → shareToRaw → fmtCommon → koNames → … 순서.
  */
 (function (g) {
   'use strict';
-
-  function readLabel(v) {
-    if (v == null) return '';
-    if (typeof v === 'string') return v.trim();
-    if (typeof v === 'number') return String(v);
-    if (typeof v === 'object' && v.name != null) return readLabel(v.name);
-    if (typeof v === 'object' && v.label != null) return readLabel(v.label);
-    if (typeof v === 'object' && v.title != null) return readLabel(v.title);
-    return String(v).trim();
-  }
 
   function normalizeMatchKey(s) {
     return String(s || '')
@@ -38,7 +28,6 @@
   }
 
   g.nuoFmtCommon = {
-    readLabel: readLabel,
     normalizeMatchKey: normalizeMatchKey,
     ruleFitsSpecies: ruleFitsSpecies,
   };

@@ -1,35 +1,12 @@
 /**
  * Smartnuo GET /api/party/share/:id JSON → formatSingleSample 이 기대하는 줄글.
- * 실제 페이로드 필드명은 사이트 변경 시 shareToRaw.js 만 조정하면 됨.
+ * 슬롯 필드 읽기는 slotRead.js (nuoSlotRead) — 본 파일은 줄글 조립·공유 응답 해석만.
  */
 (function (global) {
   'use strict';
 
-  var STAT_KEYS = ['hp', 'atk', 'def', 'spa', 'spd', 'spe'];
-  /** Smartnuo pokemon.stats 키 (value=노력, real=실수치) */
-  var SMARTNUO_STAT_KEYS = ['hp', 'attack', 'defense', 'special_attack', 'special_defense', 'speed'];
+  var SL = global.nuoSlotRead;
   var STAT_LABELS_KO = ['HP', '공격', '방어', '특수공격', '특수방어', '스피드'];
-
-  function asInt(v) {
-    if (v === null || v === undefined || v === '') return null;
-    var n = parseInt(String(v), 10);
-    return isNaN(n) ? null : n;
-  }
-
-  function str(v) {
-    if (v == null) return '';
-    if (typeof v === 'string') return v.trim();
-    if (typeof v === 'number') return String(v);
-    // 한글 alias 를 영문 .name 보다 우선 — Nuxt 슬롯 객체가 { id, name(en), kr, ...} 일 때
-    // 사이트가 보여 주는 한글을 우선 추출.
-    if (typeof v === 'object' && v.kr != null) return str(v.kr);
-    if (typeof v === 'object' && v.name_kr != null) return str(v.name_kr);
-    if (typeof v === 'object' && v.nameKr != null) return str(v.nameKr);
-    if (typeof v === 'object' && v.name != null) return str(v.name);
-    if (typeof v === 'object' && v.label != null) return str(v.label);
-    if (typeof v === 'object' && v.title != null) return str(v.title);
-    return String(v).trim();
-  }
 
   function extractPsId(s) {
     var m = String(s).match(/[#&?]ps=([^&#'"\s]+)/i);
@@ -118,177 +95,6 @@
     throw new Error('unknown_share_shape');
   }
 
-  /**
-   * 슬롯 객체 평탄화. 사이트가 슬롯을 다양한 모양으로 직렬화하므로 가능한 모양을 모두 흡수:
-   *   slot.pokemon | slot.mon | slot.poke      → 공통
-   *   slot.data.pokemon | slot.data.mon | ...  → POST/GET 응답에서 한 단계 더 들어가는 케이스
-   *
-   * F10: 본 함수가 SW (background + importScripts) 측 단일 출처. simpleMovePower 의 옛
-   *   `flattenPokemonSlot` 은 제거 후 본 함수로 대체. MAIN-world(teamBuilderBridge) 는
-   *   다른 컨텍스트라 자체 사본을 유지하되 alias 목록은 본 함수와 동일하게 정렬.
-   * Phase 2.B: Nuxt 슬롯은 pokemon.name_kr 등 nested 만 오는 경우가 많음 — flatten 후 flat 에 흡수.
-   */
-  function flattenSlot(slot) {
-    if (!slot || typeof slot !== 'object') return {};
-    var nested = slot.pokemon || slot.mon || slot.poke;
-    if (!nested && slot.data && typeof slot.data === 'object' && !Array.isArray(slot.data)) {
-      nested = slot.data.pokemon || slot.data.mon || slot.data.poke;
-    }
-    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-      return Object.assign({}, nested, slot);
-    }
-    if (slot.data && typeof slot.data === 'object' && !Array.isArray(slot.data)) {
-      return Object.assign({}, slot.data, slot);
-    }
-    return Object.assign({}, slot);
-  }
-
-  function isSlotEmpty(slot) {
-    if (slot == null) return true;
-    if (typeof slot !== 'object') return true;
-    var s = flattenSlot(slot);
-    var keys = Object.keys(s).filter(function (k) {
-      var v = s[k];
-      if (v == null || v === '') return false;
-      if (Array.isArray(v) && v.length === 0) return false;
-      if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return false;
-      return true;
-    });
-    return keys.length === 0;
-  }
-
-  function getEv(s, key) {
-    var evs = s.ev || s.evs || s.EV || s.effort || s.effortValues;
-    if (!evs || typeof evs !== 'object' || Array.isArray(evs)) return 0;
-    var v = evs[key] != null ? evs[key] : evs[key.toUpperCase()];
-    return asInt(v) != null ? asInt(v) : 0;
-  }
-
-  /** Smartnuo stats.hp = { value|effort|effort_value: 노력, real: 실수치, individual_value } */
-  function getRealEvSmartnuo(s, statIdx) {
-    var st = s.stats;
-    var apiKey = SMARTNUO_STAT_KEYS[statIdx];
-    if (st && st[apiKey] && typeof st[apiKey] === 'object') {
-      var o = st[apiKey];
-      var evNum = asInt(o.value);
-      if (evNum == null) evNum = asInt(o.effort_value);
-      if (evNum == null) evNum = asInt(o.effort);
-      return {
-        real: asInt(o.real) != null ? asInt(o.real) : 0,
-        ev: evNum != null ? evNum : 0,
-      };
-    }
-    return {
-      real: getRealLegacy(s, statIdx),
-      ev: getEv(s, STAT_KEYS[statIdx]),
-    };
-  }
-
-  function getRealLegacy(s, idx) {
-    var st = s.stats || s.finalStats || s.stat || s.real || s.baseStats;
-    if (Array.isArray(st) && st.length > idx) {
-      var n = asInt(st[idx]);
-      return n != null ? n : 0;
-    }
-    if (st && typeof st === 'object' && !Array.isArray(st)) {
-      var kk = STAT_KEYS[idx];
-      var v = st[kk] != null ? st[kk] : st[kk.toUpperCase()];
-      if (v != null && typeof v !== 'object') {
-        var n2 = asInt(v);
-        return n2 != null ? n2 : 0;
-      }
-    }
-    return 0;
-  }
-
-  function koFromMaybeObj(v) {
-    if (v == null) return '';
-    if (typeof v === 'string') return str(v);
-    if (typeof v === 'object' && v.kr != null) return str(v.kr);
-    return str(v);
-  }
-
-  function displayName(s) {
-    var nick = str(s.nickname || s.nick || s.cn || s.displayName);
-    if (nick) return nick;
-    return (
-      str(s.name_kr || s.nameKr || s.namekr || s.speciesName || s.species || s.name || s.baseName || s.pokemonName || s.label) ||
-      '--'
-    );
-  }
-
-  /** 샘플명만 (빈 문자열 허용). 종명 폴백 없음 — shareSlotToRaw 가 species 줄로 분리. */
-  function titleRest(s) {
-    return str(s.sample_name || s.sampleName);
-  }
-
-  /** 종 이름 줄(한글 우선) */
-  function speciesNameLine(s) {
-    return (
-      str(s.name_kr || s.nameKr || s.namekr) ||
-      str(s.speciesName || s.speciesKo) ||
-      str(s.species) ||
-      str(s.name) ||
-      ''
-    );
-  }
-
-  function getMoves(s) {
-    if (!s || typeof s !== 'object') return ['', '', '', ''];
-    // 새 사이트: 기술 배열은 slot.pokemon.moves. flattenSlot 과 동일 우선순위로 상위 키가 nested 를 덮음.
-    if (
-      s.pokemon &&
-      typeof s.pokemon === 'object' &&
-      Array.isArray(s.pokemon.moves) &&
-      s.pokemon.moves.length
-    ) {
-      s = Object.assign({}, s.pokemon, s);
-    }
-    if (s.movesKr && Array.isArray(s.movesKr) && s.movesKr.length) {
-      var outK = ['', '', '', ''];
-      var ki;
-      for (ki = 0; ki < 4 && ki < s.movesKr.length; ki++) outK[ki] = str(s.movesKr[ki]);
-      return outK;
-    }
-    var m = s.moves || s.move || s.skills || s.techniques;
-    if (!m) return ['', '', '', ''];
-    if (!Array.isArray(m)) m = [m];
-    var out = ['', '', '', ''];
-    for (var i = 0; i < 4 && i < m.length; i++) {
-      var mv = m[i];
-      if (mv == null) {
-        out[i] = '';
-        continue;
-      }
-      if (typeof mv === 'string') {
-        out[i] = str(mv) || '';
-        continue;
-      }
-      if (typeof mv === 'object') {
-        out[i] = str(
-          mv.name_ko ||
-            mv.nameKo ||
-            mv.name_kr ||
-            mv.nameKr ||
-            mv.kr ||
-            mv.koName ||
-            mv.label ||
-            mv.name ||
-            mv.title ||
-            ''
-        );
-        continue;
-      }
-      out[i] = str(mv) || '';
-    }
-    return out;
-  }
-
-  function teraLine(s) {
-    var t = s.terastal || s.tera || s.teraType || s.TeraType || s.teratype;
-    return str(t);
-  }
-
   var REAL_LETTERS_SIX = ['H', 'A', 'B', 'C', 'D', 'S'];
 
   /**
@@ -297,15 +103,10 @@
    * @returns {Record<string, number>}
    */
   function realByLetterFromSlot(slot) {
-    if (isSlotEmpty(slot)) return {};
-    var s = flattenSlot(slot);
+    if (SL.isEmpty(slot)) return {};
     var out = {};
     var i;
-    for (i = 0; i < 6; i++) {
-      var pr = getRealEvSmartnuo(s, i);
-      var n = pr && pr.real;
-      if (n != null && !isNaN(n)) out[REAL_LETTERS_SIX[i]] = n;
-    }
+    for (i = 0; i < 6; i++) out[REAL_LETTERS_SIX[i]] = SL.stat(slot, i).real;
     return out;
   }
 
@@ -322,7 +123,7 @@
     var idx = blockIndex1Based | 0;
     if (idx < 1) idx = 1;
 
-    if (isSlotEmpty(slot)) {
+    if (SL.isEmpty(slot)) {
       var headEmpty = numbered ? '#' + idx : '--';
       var linesE = [headEmpty, '특성 : --', '도구 : --', '성격 : --'];
       var si;
@@ -336,9 +137,8 @@
       return linesE.join('\n');
     }
 
-    var s = flattenSlot(slot);
-    var sampleTitle = titleRest(s);
-    var speciesLine = speciesNameLine(s);
+    var sampleTitle = SL.sampleName(slot);
+    var speciesLine = SL.speciesKo(slot);
     var lines = [];
     if (numbered) {
       lines.push(sampleTitle ? '#' + idx + ' | ' + sampleTitle : '#' + idx);
@@ -352,21 +152,20 @@
       lines.push(numbered ? '#' + idx : '--');
     }
 
-    lines.push('특성 : ' + (koFromMaybeObj(s.ability || s.ab || s.Ability) || '--'));
-    lines.push('도구 : ' + (koFromMaybeObj(s.equipment || s.item || s.Item || s.hold || s.holdItem) || '--'));
-    lines.push('성격 : ' + (str(s.personality || s.nature || s.Nature) || '--'));
+    lines.push('특성 : ' + (SL.ability(slot) || '--'));
+    lines.push('도구 : ' + (SL.item(slot) || '--'));
+    lines.push('성격 : ' + (SL.nature(slot) || '--'));
 
-    var ter = teraLine(s);
+    var ter = SL.tera(slot);
     if (ter) lines.push('테라스탈 : ' + ter);
 
     var i;
     for (i = 0; i < 6; i++) {
-      var label = STAT_LABELS_KO[i];
-      var pr = getRealEvSmartnuo(s, i);
-      lines.push(label + ' : ' + pr.real + ' ' + pr.ev);
+      var st = SL.stat(slot, i);
+      lines.push(STAT_LABELS_KO[i] + ' : ' + st.real + ' ' + st.sp);
     }
 
-    var moves = getMoves(s);
+    var moves = SL.moves(slot);
     for (i = 0; i < 4; i++) {
       lines.push('기술' + (i + 1) + ' : ' + (moves[i] || '--'));
     }
@@ -374,30 +173,10 @@
     return lines.join('\n');
   }
 
-  /** @returns {number[]} six EV values in order HP, Atk, Def, SpA, SpD, Spe */
-  function getEvValuesSix(s) {
-    var flat = flattenSlot(s);
-    var out = [];
-    var i;
-    for (i = 0; i < 6; i++) {
-      out.push(getRealEvSmartnuo(flat, i).ev);
-    }
-    return out;
-  }
-
   global.shareToRaw = {
     classifyShareGetResponse: classifyShareGetResponse,
     shareSlotToRaw: shareSlotToRaw,
-    isSlotEmpty: isSlotEmpty,
-    flattenSlot: flattenSlot,
-    getMoves: getMoves,
-    getEvValuesSix: getEvValuesSix,
-    teraLine: teraLine,
     realByLetterFromSlot: realByLetterFromSlot,
-    titleRest: titleRest,
-    speciesNameLine: speciesNameLine,
-    str: str,
-    asInt: asInt,
     extractPsId: extractPsId,
     normalizePartyUrlInput: normalizePartyUrlInput,
   };

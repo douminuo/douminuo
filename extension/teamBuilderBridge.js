@@ -1,10 +1,10 @@
 /**
  * 팀빌더(MAIN). Nuxt 3 — `window.__NUXT__.state['$sparty.slots']` 직접 읽기.
- * NUO_TEAM_SLOTS_REPLY.slotArt: pokemon.sprite 우선(검증 통과 시 정규화 URL, 아니면 원문).
+ * NUO_TEAM_SLOTS_REPLY = 도감 보강한 슬롯 복제본만. 채워짐·일러스트 판정은 콘텐츠 쪽 slotRead.js (teamBuilderShared).
  */
 (function () {
-  if (window.__NUO_TEAM_BUILDER_BRIDGE_V11__) return;
-  window.__NUO_TEAM_BUILDER_BRIDGE_V11__ = true;
+  if (window.__NUO_TEAM_BUILDER_BRIDGE_V12__) return;
+  window.__NUO_TEAM_BUILDER_BRIDGE_V12__ = true;
 
   var MSG_EXT = 'nuo-team-ext';
   var MSG_BRIDGE = 'nuo-team-bridge';
@@ -189,117 +189,6 @@
     return out;
   }
 
-  /**
-   * SW측 shareToRaw.flattenSlot 과 의미·alias 동일 사본 (F10). name_kr 등은 nested 에만 있어도 flatten 후 상위와 합쳐짐.
-   */
-  function flattenSlot(slot) {
-    if (!slot || typeof slot !== 'object') return {};
-    var nested = slot.pokemon || slot.mon || slot.poke;
-    if (!nested && slot.data && typeof slot.data === 'object' && !Array.isArray(slot.data)) {
-      nested = slot.data.pokemon || slot.data.mon || slot.data.poke;
-    }
-    if (nested && typeof nested === 'object' && !Array.isArray(nested)) {
-      return Object.assign({}, nested, slot);
-    }
-    if (slot.data && typeof slot.data === 'object' && !Array.isArray(slot.data)) {
-      return Object.assign({}, slot.data, slot);
-    }
-    return Object.assign({}, slot);
-  }
-
-  function slotEmpty(s) {
-    if (s == null || typeof s !== 'object') return true;
-    var flat = flattenSlot(s);
-    var keys = Object.keys(flat).filter(function (k) {
-      var v = flat[k];
-      if (v == null || v === '') return false;
-      if (Array.isArray(v) && v.length === 0) return false;
-      if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return false;
-      return true;
-    });
-    return keys.length === 0;
-  }
-
-  function pokemonBlockFromSlot(slot) {
-    if (!slot || typeof slot !== 'object') return null;
-    var p = slot.pokemon || slot.mon || slot.poke;
-    if (!p && slot.data && typeof slot.data === 'object' && !Array.isArray(slot.data)) {
-      p = slot.data.pokemon || slot.data.mon || slot.data.poke;
-    }
-    if (!p || typeof p !== 'object' || Array.isArray(p)) return null;
-    return p;
-  }
-
-  function normalizeAndValidatePokeapiRawSpriteUrl(raw) {
-    if (raw == null || typeof raw !== 'string') return '';
-    var u = raw.trim();
-    if (!u || u.length > 900) return '';
-    if (u.indexOf('//') === 0) {
-      u = (typeof location !== 'undefined' && location.protocol ? location.protocol : 'https:') + u;
-    }
-    try {
-      var parsed = new URL(u);
-      if ((parsed.protocol || '').toLowerCase() !== 'http:' && (parsed.protocol || '').toLowerCase() !== 'https:') {
-        return '';
-      }
-      if ((parsed.hostname || '').toLowerCase() !== 'raw.githubusercontent.com') return '';
-      var path = parsed.pathname || '';
-      if (!/\/sprites\/pokemon\//i.test(path)) return '';
-      if (!/\.png$/i.test(path)) return '';
-      return parsed.href;
-    } catch (e0) {
-      return '';
-    }
-  }
-
-  function normalizeAndValidateSmartnuoSpriteUrl(raw) {
-    if (raw == null || typeof raw !== 'string') return '';
-    var u = raw.trim();
-    if (!u || u.length > 900) return '';
-    if (u.indexOf('//') === 0) {
-      u = (typeof location !== 'undefined' && location.protocol ? location.protocol : 'https:') + u;
-    }
-    try {
-      var parsed = new URL(u);
-      if ((parsed.protocol || '').toLowerCase() !== 'http:' && (parsed.protocol || '').toLowerCase() !== 'https:') {
-        return '';
-      }
-      var host = (parsed.hostname || '').toLowerCase();
-      if (host !== 'smartnuo.com' && host !== 'www.smartnuo.com') return '';
-      var path = parsed.pathname || '';
-      if (path.indexOf('..') !== -1) return '';
-      var pl = path.toLowerCase();
-      // smartnuo sprite 두 경로: 옛 /upload/sprite/ … · 리뉴얼 후 share 로드 시 /data/sprite/ …
-      if (pl.indexOf('/upload/sprite/') !== 0 && pl.indexOf('/data/sprite/') !== 0) return '';
-      if (!/\.png$/i.test(path)) return '';
-      return parsed.href;
-    } catch (eSn) {
-      return '';
-    }
-  }
-
-  function spriteUrlFromSlot(slot) {
-    if (slotEmpty(slot)) return '';
-    var p = pokemonBlockFromSlot(slot);
-    if (!p || typeof p.sprite !== 'string') return '';
-    var raw = p.sprite.trim();
-    if (!raw) return '';
-    var gh = normalizeAndValidatePokeapiRawSpriteUrl(raw);
-    if (gh) return gh;
-    var sn = normalizeAndValidateSmartnuoSpriteUrl(raw);
-    if (sn) return sn;
-    return raw;
-  }
-
-  function buildSlotArtUrls(slots) {
-    var out = [];
-    var i;
-    for (i = 0; i < 6; i++) {
-      out.push(spriteUrlFromSlot(slots[i]));
-    }
-    return out;
-  }
-
   function cloneSlots(slots) {
     try {
       return JSON.parse(JSON.stringify(slots));
@@ -323,7 +212,6 @@
             ok: false,
             error: 'no_party_slots',
             slots: null,
-            filled: null,
           },
           '*'
         );
@@ -339,22 +227,10 @@
             ok: false,
             error: 'clone_failed',
             slots: null,
-            filled: null,
           },
           '*'
         );
         return;
-      }
-      var filled = [];
-      var i;
-      for (i = 0; i < 6; i++) {
-        filled.push(!slotEmpty(slots[i]));
-      }
-      var slotArt;
-      try {
-        slotArt = buildSlotArtUrls(slots);
-      } catch (eArt) {
-        slotArt = ['', '', '', '', '', ''];
       }
       window.postMessage(
         {
@@ -363,8 +239,6 @@
           requestId: rid,
           ok: true,
           slots: cloned,
-          filled: filled,
-          slotArt: slotArt,
         },
         '*'
       );

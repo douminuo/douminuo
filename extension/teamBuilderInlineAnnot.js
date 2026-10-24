@@ -116,51 +116,6 @@
     return out;
   }
 
-  function moveDisplayNamesFromSlot(slotData) {
-    var s =
-      slotData && slotData.pokemon && typeof slotData.pokemon === 'object'
-        ? Object.assign({}, slotData.pokemon, slotData)
-        : slotData || {};
-    if (s.movesKr && Array.isArray(s.movesKr) && s.movesKr.length) {
-      var ok = ['', '', '', ''];
-      var k;
-      for (k = 0; k < 4 && k < s.movesKr.length; k++) ok[k] = String(s.movesKr[k] || '').trim();
-      return ok;
-    }
-    var poke = slotData && slotData.pokemon;
-    if (!poke || !Array.isArray(poke.moves)) return ['', '', '', ''];
-    var out = ['', '', '', ''];
-    var i;
-    for (i = 0; i < 4 && i < poke.moves.length; i++) {
-      var mv = poke.moves[i];
-      if (mv == null) {
-        out[i] = '';
-        continue;
-      }
-      if (typeof mv === 'string') {
-        out[i] = String(mv).trim();
-        continue;
-      }
-      // 슬롯 직속 한글 alias 우선 (옛 공유 URL / 손수 기입 케이스).
-      var picked =
-        mv.name_ko || mv.nameKo || mv.name_kr || mv.nameKr || mv.kr || mv.koName || mv.label || '';
-      if (!picked && mv.name) {
-        // 새 공유 URL: 사이트가 lazy 채운 rich row 가 mv.name 객체로 들어옴
-        //   { id, name(en), kr, type, base_power, category }
-        // 카드 DOM 은 mv.name.kr 한칭으로 렌더 → 우리도 그걸 골라야 매치.
-        if (typeof mv.name === 'object') {
-          picked = mv.name.kr || mv.name.name_kr || mv.name.nameKr || '';
-        } else {
-          // string slug — 사이트가 한칭 fetch 전이라 카드도 같은 영문 slug 로 렌더.
-          picked = mv.name;
-        }
-      }
-      if (!picked) picked = mv.title || '';
-      out[i] = String(picked).trim();
-    }
-    return out;
-  }
-
   /** want 문자열이 기술명 매칭에서 제외되는지(옛 findExactTextNodeHost 와 동일). */
   function tbMoveWantSkippable(want) {
     want = String(want || '').trim();
@@ -396,7 +351,7 @@
         clearTbInlineAnnotations();
         results.forEach(function (item) {
           if (!item) return;
-          var names = moveDisplayNamesFromSlot(item.slotData);
+          var names = globalThis.nuoSlotRead.moves(item.slotData);
           var card = item.card;
           if (!card) return;
           if (tbInlineEnabled) {

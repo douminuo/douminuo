@@ -10,6 +10,7 @@
   var CS = g.nuoCsCommon || {};
   var TBS = g.nuoTeamBuilderShared || {};
   var LIB = g.nuoSampleLibrary;
+  var SL = g.nuoSlotRead;
   if (!LIB || typeof TBS.getSlotsFromBridge !== 'function' || typeof CS.findTextLeaves !== 'function') return;
 
   var EMPTY_MSG = '포켓몬을 먼저 선택해 주세요';
@@ -22,10 +23,6 @@
   }
 
   function stop() { throw STOP; }
-
-  function hasMon(slot) {
-    return !!(slot && slot.pokemon && slot.pokemon.name);
-  }
 
   /** 슬롯 #n 좌측 카드의 공식 일러스트 URL (§4.1 arts). 헤더 `#n` leaf → 헤더 줄 → 다음 형제 = 카드. */
   function findArt(n) {
@@ -71,7 +68,7 @@
     fb.busy();
     readSlots().then(function (slots) {
       slot = slots[n - 1];
-      if (!hasMon(slot)) { fb.idle(); window.alert(EMPTY_MSG); stop(); }
+      if (SL.isEmpty(slot)) { fb.idle(); window.alert(EMPTY_MSG); stop(); }
       var has = LIB.normName(slot.sample_name);
       asked = !has;
       return has || LIB.nameDialog('샘플 저장', '샘플 이름');
@@ -81,7 +78,7 @@
       return LIB.readAll().then(function (items) { return okToSave(items, name, SAMPLE_O); });
     }).then(function (go) {
       if (!go) stop();
-      return LIB.saveEntry(slot, findArt(n) || String(slot.pokemon.sprite || ''));
+      return LIB.saveEntry(slot, findArt(n) || SL.sprite(slot));
     }).then(function () {
       if (!asked) return null;
       // 사이트 이름 반영 실패는 조용히 — 샘플 저장은 이미 끝남 (사용자는 사이트 칸에서 다시 입력 가능)
@@ -96,9 +93,9 @@
     var slots, arts;
     fb.busy();
     readSlots().then(function (all) {
-      slots = all.map(function (s) { return hasMon(s) ? s : null; });
+      slots = all.map(function (s) { return SL.isEmpty(s) ? null : s; });
       if (!slots.some(Boolean)) { fb.idle(); window.alert(EMPTY_MSG); stop(); }
-      arts = slots.map(function (s, i) { return s ? (findArt(i + 1) || String(s.pokemon.sprite || '')) : ''; });
+      arts = slots.map(function (s, i) { return s ? (findArt(i + 1) || SL.sprite(s)) : ''; });
       return LIB.nameDialog('파티 저장', '파티 이름');
     }).then(function (name) {
       if (!name) stop();

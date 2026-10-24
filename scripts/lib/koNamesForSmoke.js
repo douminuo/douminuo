@@ -20,8 +20,11 @@ function koNamesDocs() {
   };
 }
 
-/** ctx 에는 fmtCommon.js 가 이미 올라가 있어야 함. */
+/** ctx 에는 fmtCommon.js 가 이미 올라가 있어야 함. slotRead.js 는 없으면 여기서 올림 (koNames 가 SL.label 사용). */
 function koNamesForSmoke(ctx, docs) {
+  if (!ctx.nuoSlotRead) {
+    vm.runInContext(fs.readFileSync(path.join(EXT, 'slotRead.js'), 'utf8'), ctx, { filename: 'slotRead.js' });
+  }
   vm.runInContext(fs.readFileSync(path.join(EXT, 'koNames.js'), 'utf8'), ctx, { filename: 'koNames.js' });
   return ctx.nuoKoNames.forDocs(docs || koNamesDocs());
 }

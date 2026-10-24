@@ -2,24 +2,20 @@
  * 한글 이름 해석 — 도구·특성·기술 라벨(한글·영문·slug·{kr} 객체) → slug (기술은 Showdown id) + modifiers 규칙.
  * 우선순위 (세 종류 공통): ① 사이트 표기(*KoFallback.json) ② modifiers nameKo·aliases·slug ③ PokéAPI 표기(*KoMap.json)
  * ④ 영문/slug 모양이면 그대로 정규화. 비교 키 = 소문자 + 공백·하이픈·따옴표·점 제거 (KO_NAMES_PLAN §2).
- * SW 전용 (importScripts: fmtCommon 다음).
+ * SW 전용 (importScripts: slotRead·fmtCommon 다음).
  */
 (function (g) {
   'use strict';
 
-  var FC = g.nuoFmtCommon;
+  var SL = g.nuoSlotRead;
 
   function matchKey(s) {
     return String(s == null ? '' : s).toLowerCase().replace(/[\s\-'’.]/g, '');
   }
 
-  /** 사이트 슬롯 값 → 라벨 문자열. 객체면 kr 우선 (사이트 {en, kr}·슬롯 {kr} 모양). */
+  /** 사이트 슬롯 값({en, kr} 객체 또는 문자열) → 라벨 문자열. */
   function labelOf(v) {
-    if (v != null && typeof v === 'object' && !Array.isArray(v)) {
-      var k = v.kr != null ? v.kr : v.name_kr != null ? v.name_kr : v.nameKr;
-      if (k != null && String(k).trim()) return FC.readLabel(k);
-    }
-    var t = FC.readLabel(v);
+    var t = SL.label(v);
     return t === '--' ? '' : t;
   }
 

@@ -14,7 +14,7 @@
   'use strict';
 
   var FC = global.nuoFmtCommon;
-  var SR = globalThis.shareToRaw;  // C3: hold 정규화용
+  var SL = global.nuoSlotRead;
 
   /** 한글 타입명 → PokeAPI type.name */
   var TYPE_KO_TO_EN = {
@@ -58,20 +58,12 @@
     if (mv == null || typeof mv !== 'object' || Array.isArray(mv)) {
       return names.move(mv);
     }
-    var order = [
-      'nameEn',
-      'name_en',
-      'englishName',
-      'name',
-      'nameKr',
-      'name_kr',
-      'titleKr',
-      'label',
-    ];
+    // 사이트 기술 칸: name = { id, name(영문), kr, … } 객체 또는 '', name_kr = 한글. 영문 → 한글 순.
+    var order = [mv.name && typeof mv.name === 'object' ? mv.name.name : '', mv.name, mv.name_kr];
     var seen = {};
     var i;
     for (i = 0; i < order.length; i++) {
-      var t = FC.readLabel(mv[order[i]]);
+      var t = SL.label(order[i]);
       if (!t || seen[t]) continue;
       seen[t] = true;
       var id = names.move(t);
@@ -377,12 +369,9 @@
     var poke = slotData && slotData.pokemon;
     if (!poke || !Array.isArray(poke.moves)) return out;
 
-    // F10: SR.flattenSlot 단일 출처 사용 (옛 flattenPokemonSlot 사본 제거).
-    // C3: SR.str() 로 equipment/ability 정규화 — 문자열/객체 양쪽 진입 통일.
-    var flat = SR.flattenSlot(slotData);
-    var itemHit = names.itemRule(SR.str(flat.equipment || flat.item || flat.Item || flat.hold));
-    var itemRule = itemHit && FC.ruleFitsSpecies(itemHit.rule, SR.speciesNameLine(flat)) ? itemHit.rule : null;
-    var abilityHit = names.abilityRule(SR.str(flat.ability || flat.ab || flat.Ability));
+    var itemHit = names.itemRule(SL.item(slotData));
+    var itemRule = itemHit && FC.ruleFitsSpecies(itemHit.rule, SL.speciesKo(slotData)) ? itemHit.rule : null;
+    var abilityHit = names.abilityRule(SL.ability(slotData));
     var abilityRule = abilityHit ? abilityHit.rule : null;
 
     var stats = poke.stats || {};

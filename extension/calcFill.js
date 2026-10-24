@@ -179,24 +179,6 @@
   var snap = { slots: null, art: [], filled: [], msg: '' };
   var renderers = [];                // 붙어 있는 줄들의 render
 
-  /** 슬롯 객체에 비어 있지 않은 값이 하나라도 있으면 채워진 것 (teamBuilderBridge.slotEmpty 와 동의). */
-  function deriveFilled(slots) {
-    var i, out = [];
-    for (i = 0; i < 6; i++) {
-      var s = slots && slots[i];
-      if (!s || typeof s !== 'object') { out.push(false); continue; }
-      var keys = Object.keys(s).filter(function (k) {
-        var v = s[k];
-        if (v == null || v === '') return false;
-        if (Array.isArray(v) && v.length === 0) return false;
-        if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return false;
-        return true;
-      });
-      out.push(keys.length > 0);
-    }
-    return out;
-  }
-
   function renderAll() {
     renderers.forEach(function (fn) { try { fn(); } catch (e) {} });
   }
@@ -208,7 +190,7 @@
     getSlotsFromHotOrCache().then(function (s) {
       snapInflight = false;
       if (s && Array.isArray(s.slots) && s.slots.length > 0) {
-        snap = { slots: s.slots, art: s.slotArt || [], filled: deriveFilled(s.slots), msg: '' };
+        snap = { slots: s.slots, art: s.slotArt || [], filled: globalThis.nuoSlotRead.filledFlags(s.slots), msg: '' };
       } else {
         snap = { slots: null, art: [], filled: [], msg: '파티 페이지를 한 번 열어 주세요' };
       }

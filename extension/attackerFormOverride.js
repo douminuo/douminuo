@@ -6,34 +6,18 @@
 (function (g) {
   'use strict';
 
+  var SL = g.nuoSlotRead;
+
   // 검출 후보. 현재는 킬가르도(실드)만.
   // 7세대 너프 이후: 블레이드 Atk/SpA 140, 실드 Def/SpD 140
   // baseStats 시그니처: HP60·Atk50·Def140·SpA50·SpD140·Spe60
   var OVERRIDES = [
     {
       label: 'aegislash-shield→blade',
-      match: function (poke) {
-        if (!poke) return false;
-        // F53: poke.name string(옛 URL) / object(신규 샘플). id·smogon_id 는 하이픈 없는
-        // aegislashshield, db_en 은 aegislash-shield — 하이픈 제거 후 비교. 블레이드폼 slug 는 제외.
-        var slugNorm = function (s) {
-          return String(s || '')
-            .toLowerCase()
-            .replace(/-/g, '');
-        };
-        var slugs = [];
-        if (typeof poke.name === 'string') {
-          slugs.push(poke.name);
-        } else if (poke.name && typeof poke.name === 'object') {
-          if (poke.name.id) slugs.push(poke.name.id);
-          if (poke.name.smogon_id) slugs.push(poke.name.smogon_id);
-          if (poke.name.db_en) slugs.push(poke.name.db_en);
-        }
-        var si;
-        for (si = 0; si < slugs.length; si++) {
-          var n = slugNorm(slugs[si]);
-          if (n === 'aegislash' || n === 'aegislashshield') return true;
-        }
+      match: function (slotData, poke) {
+        // F53: slug 는 aegislash-shield / aegislash — 하이픈 제거 후 비교. 블레이드폼 slug 는 제외.
+        var n = SL.speciesSlug(slotData).replace(/-/g, '');
+        if (n === 'aegislash' || n === 'aegislashshield') return true;
         // base_stats 폴백 — 실드폼 시그너처 (HP60·Atk50·Def140·SpA50·SpD140·Spe60).
         var bs = bsArr(poke.base_stats || poke.baseStats);
         return (
@@ -107,16 +91,6 @@
     }
   }
 
-  /** calcPayload.natureKoFromFlat 와 동일 — personality 객체의 name 등 */
-  function natureKoFromPersonality(pers) {
-    if (pers == null) return '';
-    if (typeof pers === 'string') return String(pers).trim();
-    if (typeof pers === 'object') {
-      return String(pers.name || pers.kr || pers.koName || pers.label || '').trim();
-    }
-    return '';
-  }
-
   /**
    * @param {object} slotData 원본 (절대 변형 금지)
    * @param {object} natureKoDoc { koToSlug }
@@ -125,13 +99,13 @@
    */
   function applyAttackerFormOverride(slotData, natureKoDoc, natureStatMulDoc) {
     if (!slotData || typeof slotData !== 'object') return slotData;
-    var poke = slotData.pokemon;
-    if (!poke || typeof poke !== 'object') return slotData;
+    var poke = SL.mon(slotData);
+    if (!poke) return slotData;
 
     var rule = null;
     var i;
     for (i = 0; i < OVERRIDES.length; i++) {
-      if (OVERRIDES[i].match(poke)) {
+      if (OVERRIDES[i].match(slotData, poke)) {
         rule = OVERRIDES[i];
         break;
       }
@@ -145,7 +119,7 @@
 
     var lvl = parseInt(p.level, 10);
     if (!lvl || lvl < 1) lvl = 50;
-    var natureKo = natureKoFromPersonality(p.personality);
+    var natureKo = SL.nature(slotData);
 
     var atkObj = stats.attack || (stats.attack = {});
     var spaObj = stats.special_attack || (stats.special_attack = {});

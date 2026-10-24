@@ -5,7 +5,7 @@
 (function () {
   'use strict';
 
-  var SR = globalThis.shareToRaw;
+  var SL = globalThis.nuoSlotRead;
   var moveMetaCache = Object.create(null);
 
   /**
@@ -201,83 +201,14 @@
     }, 600);
   }
 
-  function str(v) {
-    return SR.str(v);
-  }
+  var str = SL.label;
+  var asInt = SL.asInt;
 
-  function asInt(v) {
-    return SR.asInt(v);
-  }
-
-  var SMARTNUO_STAT_KEYS = ['hp', 'attack', 'defense', 'special_attack', 'special_defense', 'speed'];
-
-  /**
-   * 인덱스는 HP, Atk, Def, SpA, SpD, Spe 순. Nuxt 슬롯은 stats.<key>.individual_value 형태.
-   */
-  function getIvForStat(flat, statIdx) {
-    var defIv = 31;
-    var st = flat.stats;
-    var apiKey = SMARTNUO_STAT_KEYS[statIdx];
-    if (st && st[apiKey] && typeof st[apiKey] === 'object') {
-      var iv = asInt(st[apiKey].individual_value);
-      if (iv != null) return Math.max(0, Math.min(31, iv));
-    }
-    var ivs = flat.iv || flat.ivs || flat.IV || flat.individual_value || flat.individualValues;
-    if (ivs && typeof ivs === 'object' && !Array.isArray(ivs)) {
-      var keys = [
-        ['hp', 'HP'],
-        ['atk', 'attack', 'Atk'],
-        ['def', 'defense', 'Def'],
-        ['spa', 'special_attack', 'spatk', 'SpA'],
-        ['spd', 'special_defense', 'spdef', 'SpD'],
-        ['spe', 'speed', 'Spe'],
-      ][statIdx];
-      var ki;
-      for (ki = 0; ki < keys.length; ki++) {
-        var v = asInt(ivs[keys[ki]]);
-        if (v != null) return Math.max(0, Math.min(31, v));
-      }
-    }
-    return defIv;
-  }
-
-  function getIvSix(flat) {
+  function ivSix(slot) {
     var out = [];
     var i;
-    for (i = 0; i < 6; i++) {
-      out.push(getIvForStat(flat, i));
-    }
+    for (i = 0; i < 6; i++) out.push(SL.stat(slot, i).iv);
     return out;
-  }
-
-  function speciesKoFromFlat(flat) {
-    return (
-      str(flat.name_kr) ||
-      str(flat.nameKr) ||
-      str(flat.namekr) ||
-      str(flat.speciesName || flat.speciesKo) ||
-      str(flat.species) ||
-      str(flat.name) ||
-      ''
-    );
-  }
-
-  function natureKoFromFlat(flat) {
-    var p = flat.personality || flat.nature || flat.Nature;
-    if (p == null) return '';
-    if (typeof p === 'string') return str(p);
-    if (typeof p === 'object') {
-      return str(p.name || p.kr || p.koName || p.label || '');
-    }
-    return '';
-  }
-
-  function abilityKoFromFlat(flat) {
-    var a = flat.ability || flat.ab || flat.Ability;
-    if (a == null) return '';
-    if (typeof a === 'string') return str(a);
-    if (typeof a === 'object' && a.kr != null) return str(a.kr);
-    return '';
   }
 
   /**
@@ -291,19 +222,6 @@
       return v != null && String(v).trim() !== '' ? String(v).toLowerCase().trim() : null;
     }
     return { abilityWeatherKey: key(r.setsWeather), abilityTerrainKey: key(r.setsTerrain) };
-  }
-
-  function itemKoFromFlat(flat) {
-    var e = flat.equipment || flat.item || flat.Item || flat.hold || flat.holdItem;
-    if (e == null) return '';
-    if (typeof e === 'string') return str(e);
-    if (typeof e === 'object' && e.kr != null) return str(e.kr);
-    return '';
-  }
-
-  function levelFromFlat(flat) {
-    var n = asInt(flat.level || flat.lv || flat.Level);
-    return n != null && n > 0 ? n : 50;
   }
 
   function personalityScalar(mul) {
@@ -451,7 +369,7 @@
    * 일반 케이스에서 단일 fetch. 신규 폼/번들 미커버 시에만 sequential 추측 폴백.
    */
   function firstDamagingMoveMeta(slot, names, slugCanonicalMap) {
-    var moves = SR.getMoves(slot);
+    var moves = SL.moves(slot);
     var chain = Promise.resolve(null);
     var mi;
     for (mi = 0; mi < 4; mi++) {
@@ -479,7 +397,7 @@
    * 못 찾으면 호출자가 firstDamagingMoveMeta 로 폴백.
    */
   function firstDamagingMoveFromSlotPokemon(slot, typeKoDoc, moveKoDoc, moveKoFallbackDoc) {
-    var nested = (slot && slot.pokemon) || (slot && typeof slot === 'object' ? slot : null);
+    var nested = SL.mon(slot);
     if (!nested) return null;
     var moves = nested.moves;
     if (!Array.isArray(moves) || !moves.length) return null;
@@ -622,7 +540,7 @@
 
   /**
    * 슬롯 하나(팀빌더 bridge 의 단일 슬롯)에서 한쪽 페이로드를 만든다.
-   * @param {object} slot raw slot (SR.flattenSlot 적용 가능한 형태)
+   * @param {object} slot 사이트 파티 슬롯 (slotRead.js 모양)
    * @param {object} docs natureKoDoc / natureStatMulDoc / typeKoDoc / moveKoDoc / moveKoFallbackDoc / koNames / moveSlugToEnDoc / moveTagsDoc
    * @param {'attacker'|'defender'} role
    * @param {'calc'|'speed'=} page — 미지정·옛 호출자는 'calc'. 스피드 계산기는 move 없이 nature.spe 만 반영.
@@ -630,23 +548,24 @@
    */
   function buildOneSideFromFlatSlot(slot, docs, role, page) {
     if (!page) page = 'calc';
-    if (SR.isSlotEmpty(slot)) {
+    if (SL.isEmpty(slot)) {
       return Promise.resolve({ error: 'empty_slot' });
     }
-    var flat = SR.flattenSlot(slot);
-    var speciesKo = speciesKoFromFlat(flat);
+    var speciesKo = SL.speciesKo(slot);
     if (!speciesKo) {
       return Promise.resolve({ error: 'no_species' });
     }
 
-    var evs = SR.getEvValuesSix(slot);
-    var ivs = getIvSix(flat);
-    var natureKo = natureKoFromFlat(flat);
+    var evs = SL.spSix(slot);
+    var ivs = ivSix(slot);
+    var natureKo = SL.nature(slot);
     var nr = natureRowForKo(natureKo, docs.natureKoDoc, docs.natureStatMulDoc);
-    var level = levelFromFlat(flat);
+    var level = SL.level(slot) || 50;
+    var abilityKo = SL.ability(slot);
+    var itemKo = SL.item(slot);
 
     if (page === 'speed') {
-      var envSp = envKeysFromAbilityKo(abilityKoFromFlat(flat), docs.koNames);
+      var envSp = envKeysFromAbilityKo(abilityKo, docs.koNames);
       var persSp = 1;
       if (nr.row) persSp = personalityScalar(nr.row.spe);
       return Promise.resolve({
@@ -654,8 +573,8 @@
         evs: evs,
         ivs: ivs,
         level: level,
-        abilityKo: abilityKoFromFlat(flat),
-        itemKo: itemKoFromFlat(flat),
+        abilityKo: abilityKo,
+        itemKo: itemKo,
         personality: persSp,
         abilityWeatherKey: envSp.abilityWeatherKey,
         abilityTerrainKey: envSp.abilityTerrainKey,
@@ -663,14 +582,14 @@
     }
 
     if (role === 'defender') {
-      var defEnv = envKeysFromAbilityKo(abilityKoFromFlat(flat), docs.koNames);
+      var defEnv = envKeysFromAbilityKo(abilityKo, docs.koNames);
       return Promise.resolve({
         speciesKo: speciesKo,
         evs: evs,
         ivs: ivs,
         level: level,
-        abilityKo: abilityKoFromFlat(flat),
-        itemKo: itemKoFromFlat(flat),
+        abilityKo: abilityKo,
+        itemKo: itemKo,
         natureKo: natureKo,
         _defNatureRow: nr.row,
         abilityWeatherKey: defEnv.abilityWeatherKey,
@@ -699,7 +618,7 @@
         attackerPersonality = personalityScalar(physicalMove ? nr.row.atk : nr.row.spa);
       }
 
-      var atkEnv = envKeysFromAbilityKo(abilityKoFromFlat(flat), docs.koNames);
+      var atkEnv = envKeysFromAbilityKo(abilityKo, docs.koNames);
       // F40 (2026-05-23): moveTagsDoc 는 docs 묶음에 미리 들어 있음 — SW 가 1회 로드.
       var moveTagsDoc = (docs && docs.moveTagsDoc) || { moves: {} };
       return Promise.resolve({
@@ -707,8 +626,8 @@
         evs: evs,
         ivs: ivs,
         level: level,
-        abilityKo: abilityKoFromFlat(flat),
-        itemKo: itemKoFromFlat(flat),
+        abilityKo: abilityKo,
+        itemKo: itemKo,
         physicalMove: physicalMove,
         attackerPersonality: attackerPersonality,
         attackerMove:
@@ -753,7 +672,7 @@
 
   /**
    * 팀빌더 슬롯 객체 한 개를 한쪽 패널 페이로드로 변환. URL fetch 없음 — 어머니 사이트 트래픽 0.
-   * @param {object} slot 팀빌더 bridge 가 준 single slot (SR.flattenSlot 적용 가능)
+   * @param {object} slot 팀빌더 bridge 가 준 single slot (slotRead.js 모양)
    * @param {'attacker'|'defender'} side 어느 패널에 적용할지
    * @param {object} docs background.js loadCalcPayloadDocs() 의 8개 doc 묶음
    * @returns {Promise<{attacker?: object, defender?: object}>} 한쪽만 채워진 모양 (반대쪽은 null).

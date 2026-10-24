@@ -14,6 +14,7 @@ const { koNamesForSmoke } = require('./lib/koNamesForSmoke');
 const ctx = { globalThis: {}, self: {}, console };
 ctx.globalThis = ctx.self = ctx;
 vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(path.join(root, 'extension', 'slotRead.js'), 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(fmtCommonPath, 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(shareToRawPath, 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(simplePath, 'utf8'), ctx);
@@ -24,8 +25,12 @@ function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
+// 픽스처는 짧게 slot.ability·slot.equipment 로 씀 → 사이트 모양(pokemon 안, name 필수)으로 옮겨 넘김.
 function cmp(slot, types) {
-  return SMP.computeMovePowers(slot, types, names, moveTags);
+  const p = Object.assign({ name: 'smoke' }, slot.pokemon);
+  if (slot.ability !== undefined) p.ability = slot.ability;
+  if (slot.equipment !== undefined) p.equipment = slot.equipment;
+  return SMP.computeMovePowers({ pokemon: p }, types, names, moveTags);
 }
 
 const firePunch = {
@@ -63,7 +68,7 @@ const sheerFang = cmp({ pokemon: { moves: [fireFang], stats: { attack: { real: 1
 assert(sheerFang[0].buffed === Math.floor(Math.floor(65 * 1.3) * 100 * 1.5), 'sheer force + fire fang (secondaries[]): got ' + sheerFang[0].buffed);
 
 const firePunchKo = {
-  nameKr: '불꽃펀치',
+  name_kr: '불꽃펀치',
   power: '75',
   damage_class: 'physical',
   type: 'Fire',
@@ -85,7 +90,7 @@ function koOnly(nameKr, power, dc, type, ability) {
   return cmp(
     {
       pokemon: {
-        moves: [{ nameKr: nameKr, power: power, damage_class: dc, type: type }],
+        moves: [{ name_kr: nameKr, power: power, damage_class: dc, type: type }],
         stats: { attack: { real: 100 }, special_attack: { real: 100 } },
       },
       ability: { name: ability },

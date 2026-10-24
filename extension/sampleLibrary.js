@@ -7,6 +7,7 @@
   'use strict';
 
   var CS = g.nuoCsCommon || {};
+  var SL = g.nuoSlotRead;
   var A = g.NUO_SAMPLE_CARD_ASSETS || { stat: [], move: {}, tera: {}, pokeball: '' };
   var KEY = 'nuo_fmt_sampleLibrary';
   var PARTY_KEY = 'nuo_fmt_partyLibrary';
@@ -50,7 +51,7 @@
   }
 
   function isLoadable(item) {
-    return !!(item && item.slot && item.slot.pokemon && item.slot.pokemon.name);
+    return !!item && !SL.isEmpty(item.slot);
   }
 
   /** 파티 = 6칸, 칸마다 null 또는 포켓몬 이름 있는 슬롯, 최소 1마리. */
@@ -60,7 +61,7 @@
     var i, n = 0;
     for (i = 0; i < 6; i++) {
       if (s[i] === null) continue;
-      if (!s[i] || !s[i].pokemon || !s[i].pokemon.name) return false;
+      if (SL.isEmpty(s[i])) return false;
       n++;
     }
     return n > 0;
@@ -105,12 +106,6 @@
     return /^(https:\/\/|\/[^/])/.test(s) ? s : '';
   }
 
-  /** 사이트 G/oe/Ae 헬퍼와 같은 규칙: object 면 kr → name → en, 아니면 문자열 그대로. */
-  function textOf(v) {
-    if (v && typeof v === 'object') return String(v.kr || v.name || v.en || '');
-    return String(v == null ? '' : v);
-  }
-
   // 파티 탭 슬롯 아이콘 줄 요약 복사 아이콘과 같은 모양 (teamBuilderFill.js SUM_SVG).
   var COPY_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4h11M2.5 8h11M2.5 12h7"/></svg>';
   var BOX_SVG = '<svg viewBox="0 -960 960 960" aria-hidden="true"><path d="M200-80q-33 0-56.5-23.5T120-160v-451q-18-11-29-28.5T80-680v-120q0-33 23.5-56.5T160-880h640q33 0 56.5 23.5T880-800v120q0 23-11 40.5T840-611v451q0 33-23.5 56.5T760-80H200Zm0-520v440h560v-440H200Zm-40-80h640v-120H160v120Zm200 280h240v-80H360v80Zm120 20Z"/></svg>';
@@ -123,13 +118,15 @@
    * @returns {string}
    */
   function renderCard(item) {
-    var p = (item && item.slot && item.slot.pokemon) || {};
-    var species = p.name_kr || textOf(p.name);
-    var nat = p.personality && typeof p.personality === 'object' ? String(p.personality.name || '') : String(p.personality || '');
-    var ability = textOf(p.ability);
-    var equip = textOf(p.equipment);
-    var tera = p.terastal && A.tera[p.terastal] ? A.tera[p.terastal] : '';
+    var slot = item && item.slot;
+    var p = SL.mon(slot) || {};
+    var species = SL.speciesKo(slot);
+    var nat = SL.nature(slot);
+    var ability = SL.ability(slot);
+    var equip = SL.item(slot);
+    var tera = A.tera[SL.tera(slot)] || '';
     var moves = Array.isArray(p.moves) ? p.moves : [];
+    var moveNames = SL.moves(slot);
     var stats = p.stats || {};
     var id = esc(item.id);
     var h = '<div class="head"><span class="nm">' + esc(item.name) + '</span><span class="acts">' +
@@ -145,7 +142,7 @@
     var k;
     for (k = 0; k < 4; k++) {
       var m = moves[k];
-      var mName = m ? String(m.name_kr || textOf(m.name)) : ''; // name_kr 빈 문자열 슬롯 있음 → 사이트처럼 name.kr 폴백
+      var mName = moveNames[k];
       var mIcon = mName && A.move[m.type] ? '<img src="' + A.move[m.type] + '" alt="">' : '';
       h += '<div class="mv">' + (mName ? mIcon + '<span>' + esc(mName) + '</span>' : '') + '</div>';
     }
@@ -182,12 +179,12 @@
       '<div class="card pt" role="button" tabindex="0" data-id="' + id + '">';
     var k;
     for (k = 0; k < 6; k++) {
-      var p = slots[k] && slots[k].pokemon;
-      if (!p || !p.name) { h += '<div class="tl e"><span class="no">' + (k + 1) + '</span></div>'; continue; }
-      var equip = textOf(p.equipment);
-      var art = safeUrl(arts[k]) || safeUrl(p.sprite);
+      var p = SL.mon(slots[k]);
+      if (!p) { h += '<div class="tl e"><span class="no">' + (k + 1) + '</span></div>'; continue; }
+      var equip = SL.item(slots[k]);
+      var art = safeUrl(arts[k]) || SL.sprite(slots[k]);
       h += '<div class="tl" style="background:' + typeBg(p.first_type) + '">' +
-        '<span class="pn">' + esc(p.name_kr || textOf(p.name)) + '</span><span class="ab">' +
+        '<span class="pn">' + esc(SL.speciesKo(slots[k])) + '</span><span class="ab">' +
         (art ? '<img class="a" src="' + esc(art) + '" alt="">' : '') +
         (equip ? '<img class="it" src="/data/party/equipment/' + encodeURIComponent(equip) + '.png" alt="">' : '') +
         '</span></div>';

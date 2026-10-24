@@ -14,6 +14,7 @@
   var MSG_BRIDGE = 'nuo-team-bridge';
 
   var CS = g.nuoCsCommon || {};
+  var SL = g.nuoSlotRead;
 
   function isSmartnuoHost() {
     var h = (location.hostname || '').toLowerCase();
@@ -67,27 +68,13 @@
     return slugDexCacheP;
   }
 
-  function slugFromPoke(p) {
-    if (!p || typeof p !== 'object') return '';
-    if (typeof p.name === 'string' && /^[a-z][a-z0-9-]*$/.test(p.name)) {
-      return p.name.toLowerCase();
-    }
-    if (p.name && typeof p.name === 'object') {
-      var s = String(p.name.id || p.name.smogon_id || '').toLowerCase().trim();
-      if (s && /^[a-z][a-z0-9-]*$/.test(s)) return s;
-    }
-    return '';
-  }
-
   function enrichSlotArtWithFallback(slots, slotArt, bySlug) {
     if (!Array.isArray(slots) || !Array.isArray(slotArt) || !bySlug) return slotArt;
     var out = slotArt.slice(0);
     var i;
     for (i = 0; i < out.length && i < slots.length; i++) {
       if (out[i]) continue;
-      var s = slots[i];
-      var p = s && (s.pokemon || s.mon || s.poke);
-      var slug = slugFromPoke(p);
+      var slug = SL.speciesSlug(slots[i]);
       if (!slug) continue;
       var dex = bySlug[slug];
       if (!dex) continue;
@@ -98,7 +85,7 @@
 
   /**
    * MAIN bridge 의 NUO_TEAM_GET_SLOTS / NUO_TEAM_SLOTS_REPLY postMessage RPC.
-   * 결과: { ok, slots, filled, slotArt, error }. 8초 timeout.
+   * 결과: { ok, slots, filled, slotArt, error }. 8초 timeout. filled·slotArt 는 여기서 slotRead 로 계산 (bridge 는 슬롯만).
    */
   function getSlotsFromBridge() {
     return new Promise(function (resolve) {
@@ -123,11 +110,12 @@
         var d = ev.data;
         if (!d || d.source !== MSG_BRIDGE || d.type !== 'NUO_TEAM_SLOTS_REPLY') return;
         if (String(d.requestId) !== rid) return;
+        var slots = Array.isArray(d.slots) ? d.slots : null;
         finish({
-          ok: !!d.ok,
-          slots: d.slots,
-          filled: d.filled,
-          slotArt: d.slotArt,
+          ok: !!d.ok && !!slots,
+          slots: slots,
+          filled: slots ? SL.filledFlags(slots) : null,
+          slotArt: slots ? [0, 1, 2, 3, 4, 5].map(function (i) { return SL.sprite(slots[i]); }) : null,
           error: d.error,
         });
       }
