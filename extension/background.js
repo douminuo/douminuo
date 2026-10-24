@@ -335,12 +335,21 @@ importScripts('showdownPaste.js');
     });
   }
 
-  function computeBlockPowersForSlot(slotData) {
+  function realByLetterFromSlot(slot) {
+    var out = {};
+    var i;
+    for (i = 0; i < 6; i++) out['HABCDS'.charAt(i)] = SL.stat(slot, i).real;
+    return out;
+  }
+
+  /**
+   * 슬롯 분석 입구 — 인라인 어노테이션·요약 복사 공용.
+   * bulk = 복사용 (`기본 (버프)`), bulkInline = 인라인용 (풀체력 조건부 특성 제외 — F51).
+   * @returns {Promise<{ movePowers: Array, bulk: object|null, bulkInline: object|null }>}
+   */
+  function analyzeSlot(slotData) {
     if (SL.isEmpty(slotData)) {
-      return Promise.resolve({
-        movePowers: [null, null, null, null],
-        speciesTypesEn: [],
-      });
+      return Promise.resolve({ movePowers: [null, null, null, null], bulk: null, bulkInline: null });
     }
     return loadDocs({
       names: loadKoNames(),
@@ -358,30 +367,35 @@ importScripts('showdownPaste.js');
           d.natureStatMulDoc
         );
       }
+      var reals = realByLetterFromSlot(slotData);
+      var speciesKo = SL.speciesKo(slotData);
+      var titleCtx = SL.sampleName(slotData) + '\n' + speciesKo;
+      function bulk(excludeConditional) {
+        return globalThis.computeBulkPhysSpecBuffed(
+          reals, d.names, SL.item(slotData), SL.ability(slotData), titleCtx, d.types || [],
+          { excludeConditionalAbilities: excludeConditional, speciesName: speciesKo }
+        );
+      }
       return {
         movePowers: SMP.computeMovePowers(slotForPower, d.types, d.names, d.moveTags),
-        speciesTypesEn: d.types || [],
+        bulk: bulk(false),
+        bulkInline: bulk(true),
       };
     });
   }
 
-  function sequentialComputeBlockAugmented(slots) {
-    var blockMovePowers = [];
-    var blockSpeciesTypes = [];
-    var pchain = Promise.resolve();
-    var i;
-    for (i = 0; i < slots.length; i++) {
-      (function (idx) {
-        pchain = pchain.then(function () {
-          return computeBlockPowersForSlot(slots[idx]).then(function (pack) {
-            blockMovePowers[idx] = pack.movePowers;
-            blockSpeciesTypes[idx] = pack.speciesTypesEn;
-          });
+  function analyzeSlotsInOrder(slots) {
+    var out = [];
+    var chain = Promise.resolve();
+    slots.forEach(function (s, i) {
+      chain = chain.then(function () {
+        return analyzeSlot(s).then(function (a) {
+          out[i] = a;
         });
-      })(i);
-    }
-    return pchain.then(function () {
-      return { blockMovePowers: blockMovePowers, blockSpeciesTypes: blockSpeciesTypes };
+      });
+    });
+    return chain.then(function () {
+      return out;
     });
   }
 
@@ -400,47 +414,25 @@ importScripts('showdownPaste.js');
   }
 
   /**
-   * @param {string} origin
-   * @param {string} pathname
-   * @param {string} partyId 등록된 파티의 #ps= 값. 빈 문자열이면 partyUrl도 빈 문자열.
-   * @param {object[]} slots 6슬롯 (로컬 또는 GET 결과)
-   * @param {{ includeSlotUrls?: boolean }} [opts] includeSlotUrls=false 면 슬롯별 POST 생략 (F16).
+   * 슬롯별 공유 URL — 순서대로 POST (빈 칸은 postShareSlot 이 '' 반환).
+   * @param {boolean} include false 면 POST 없이 전부 '' (F16).
    */
-  function resolvePartyWithRaws(origin, pathname, partyId, slots, opts) {
-    opts = opts || {};
-    var includeSlotUrls = opts.includeSlotUrls !== false;
-    var slots6 = normalizeSlotsToSix(slots);
-    var displayParty = partyId ? buildDisplayPartyUrl(origin, pathname, partyId) : '';
+  function collectSlotUrls(origin, pathname, slots6, include) {
     var urls = [];
-    var raws = [];
     var chain = Promise.resolve();
-    var i;
-    for (i = 0; i < 6; i++) {
-      (function (idx) {
-        chain = chain.then(function () {
-          var slotData = slots6[idx];
-          raws.push(SR.shareSlotToRaw(slotData, idx + 1, { numberedTitle: true }));
-          if (!includeSlotUrls) {
-            urls.push('');
-            return;
-          }
-          return postShareSlot(origin, pathname, idx + 1, slotData).then(function (u) {
-            urls.push(u || '');
-          });
+    slots6.forEach(function (slotData, idx) {
+      chain = chain.then(function () {
+        if (!include) {
+          urls.push('');
+          return;
+        }
+        return postShareSlot(origin, pathname, idx + 1, slotData).then(function (u) {
+          urls.push(u || '');
         });
-      })(i);
-    }
-    return chain.then(function () {
-      return sequentialComputeBlockAugmented(slots6).then(function (pack) {
-        return {
-          partyUrl: displayParty,
-          sampleUrls: urls,
-          pasteRaw: raws.join('\n\n'),
-          shareSlots: slots6.map(cloneShareSlot),
-          blockMovePowers: pack.blockMovePowers,
-          blockSpeciesTypes: pack.blockSpeciesTypes,
-        };
       });
+    });
+    return chain.then(function () {
+      return urls;
     });
   }
 
@@ -508,83 +500,38 @@ importScripts('showdownPaste.js');
       return Promise.reject(new Error('empty_slot'));
     }
 
-    var needUrls = needsServerUrls(fo);
-
-    return computeBlockPowersForSlot(slotData).then(function (pack) {
-      // F16: URL이 결과에 안 들어가는 옵션이면 누오 POST 생략.
-      var pSampleUrl = needUrls
-        ? postShareSlot(origin, pathname, slotIndex, slotData)
-        : Promise.resolve('');
-      return pSampleUrl.then(function (sampleUrl) {
-        var urlStr = sampleUrl ? String(sampleUrl).trim() : '';
-        var pasteRaw = SR.shareSlotToRaw(slotData, 1, { numberedTitle: false });
-        if (fo.showdownPaste) {
-          return loadPasteBundleDocs().then(function (docs) {
-            var slotsOne = [cloneShareSlot(slotData)];
-            var BSP = globalThis.buildShowdownPaste;
-            if (typeof BSP !== 'function') return pasteRaw;
-            var out = BSP(slotsOne, docs);
-            return out || pasteRaw;
-          });
-        }
-
-        return loadKoNames().then(function (names) {
-          var fmt = globalThis.formatSample;
-          if (typeof fmt !== 'function') return pasteRaw;
-          var sampleUrls = urlStr ? [urlStr] : [''];
-          var opts = {
-            includeUrls: fo.includeUrls !== false,
-            includeRealStats: !!fo.includeRealStats,
-            includeMovePowers: !!fo.includeMovePowers,
-            includeBulkStats: !!fo.includeBulkStats,
-            partyUrl: '',
-            sampleUrls: sampleUrls,
-            blockMovePowers: [pack.movePowers],
-            blockSpeciesTypes: [pack.speciesTypesEn],
-            koNames: names,
-          };
-          return fmt(pasteRaw, opts) || '';
-        });
-        });
+    // F16: URL이 결과에 안 들어가는 옵션이면 누오 POST 생략.
+    var pSampleUrl = needsServerUrls(fo)
+      ? postShareSlot(origin, pathname, slotIndex, slotData)
+      : Promise.resolve('');
+    return pSampleUrl.then(function (sampleUrl) {
+      var urls = { partyUrl: '', sampleUrls: [sampleUrl ? String(sampleUrl).trim() : ''] };
+      return formatSlotsForCopy([slotData], fo, urls, false);
     });
   }
 
-  /** resolvePartyWithRaws 결과(파티) + 팀빌더 formatOptions → 팝업과 동일한 샘플/Showdown 문자열 */
-  function formatResolvedPartyShare(data, fo) {
-    fo = fo || {};
-    var pasteRaw = data && data.pasteRaw != null ? String(data.pasteRaw) : '';
-    var partyUrl = data && data.partyUrl != null ? String(data.partyUrl).trim() : '';
-    // partyUrl이 비어 있어도 정상 — F16에 의해 의도적으로 누오 등록을 생략한 경우
-    // (옵션이 결과에 URL을 포함하지 않을 때). formatter 가 빈 partyUrl을 자연스럽게 처리.
-
-    if (fo.showdownPaste) {
-      var slots = data.shareSlots;
-      if (!Array.isArray(slots) || slots.length === 0) {
-        return Promise.resolve(pasteRaw);
-      }
-      return loadPasteBundleDocs().then(function (docs) {
-        var BSP = globalThis.buildShowdownPaste;
-        if (typeof BSP !== 'function') return pasteRaw;
-        var out = BSP(slots, docs);
-        return out || pasteRaw;
+  /**
+   * 슬롯 목록 + 팀빌더 formatOptions → 요약 또는 Showdown 텍스트 (슬롯 복사·파티 복사 공용).
+   * @param {{ partyUrl: string, sampleUrls: string[] }} urls URL 끈 설정이면 빈 값 (F16)
+   * @param {boolean} numbered 파티 = `#N` 제목
+   */
+  function formatSlotsForCopy(slots, fo, urls, numbered) {
+    function summary() {
+      return analyzeSlotsInOrder(slots).then(function (analyses) {
+        return globalThis.formatSlotsText(slots, analyses, {
+          numberedTitle: numbered,
+          includeUrls: fo.includeUrls !== false,
+          includeRealStats: !!fo.includeRealStats,
+          includeMovePowers: !!fo.includeMovePowers,
+          includeBulkStats: !!fo.includeBulkStats,
+          partyUrl: urls.partyUrl,
+          sampleUrls: urls.sampleUrls,
+        });
       });
     }
-
-    return loadKoNames().then(function (names) {
-      var fmt = globalThis.formatSample;
-      if (typeof fmt !== 'function') return pasteRaw;
-      var opts = {
-        includeUrls: fo.includeUrls !== false,
-        includeRealStats: !!fo.includeRealStats,
-        includeMovePowers: !!fo.includeMovePowers,
-        includeBulkStats: !!fo.includeBulkStats,
-        partyUrl: partyUrl,
-        sampleUrls: Array.isArray(data.sampleUrls) ? data.sampleUrls : [],
-        blockMovePowers: data.blockMovePowers,
-        blockSpeciesTypes: data.blockSpeciesTypes,
-        koNames: names,
-      };
-      return fmt(pasteRaw, opts) || '';
+    if (!fo.showdownPaste) return summary();
+    return loadPasteBundleDocs().then(function (docs) {
+      return globalThis.buildShowdownPaste(slots.map(cloneShareSlot), docs) || summary();
     });
   }
 
@@ -709,41 +656,16 @@ importScripts('showdownPaste.js');
         });
         return true;
       }
-      computeBlockPowersForSlot(slotAn)
-        .then(function (pack) {
-          return loadKoNames().then(function (names) {
-            var MPS = globalThis.movePowerSuffixFormatter;
-            var reals = SR.realByLetterFromSlot(slotAn);
-            var itemRaw = SL.item(slotAn);
-            var abilityRaw = SL.ability(slotAn);
-            var speciesKo = SL.speciesKo(slotAn);
-            var titleCtx = SL.sampleName(slotAn) + '\n' + speciesKo;
-            // F42 (2026-05-24): 두 포맷이 같은 comp 를 공유 — 옛 코드는 두 번 계산했음.
-            var CBP = globalThis.computeBulkPhysSpecBuffed;
-            var FBLC = globalThis.formatBulkLinesFromComp;
-            var FBCSC = globalThis.formatBulkCompactSlashFromComp;
-            // F51 (2026-05-24): 인라인 어노 컨텍스트 — 풀체력 조건부 특성 (멀티스케일·스펙터가드 등) skip.
-            var comp =
-              typeof CBP === 'function'
-                ? CBP(reals, names, itemRaw, abilityRaw, titleCtx, pack.speciesTypesEn, {
-                    excludeConditionalAbilities: true,
-                    speciesName: speciesKo,
-                  })
-                : null;
-            var bulkText = typeof FBLC === 'function' ? FBLC(comp) || '' : '';
-            var bulkCompact = typeof FBCSC === 'function' ? FBCSC(comp) || '' : '';
-            var suff = [];
-            var mp = pack.movePowers || [];
-            var mi;
-            for (mi = 0; mi < 4; mi++) {
-              suff.push(typeof MPS === 'function' ? MPS(mp[mi]) : null);
-            }
-            sendResponse({
-              ok: true,
-              movePowerSuffixes: suff,
-              bulkText: bulkText,
-              bulkCompact: bulkCompact,
-            });
+      analyzeSlot(slotAn)
+        .then(function (a) {
+          var mp = a.movePowers || [];
+          sendResponse({
+            ok: true,
+            movePowerSuffixes: [0, 1, 2, 3].map(function (mi) {
+              return globalThis.movePowerSuffixFormatter(mp[mi]);
+            }),
+            bulkText: globalThis.formatBulkLinesFromComp(a.bulkInline),
+            bulkCompact: globalThis.formatBulkCompactSlashFromComp(a.bulkInline),
           });
         })
         .catch(function (err) {
@@ -832,10 +754,10 @@ importScripts('showdownPaste.js');
               return Promise.reject(new Error('party_resolve_empty'));
             }
           }
-          return resolvePartyWithRaws(originCp, pathnameCp, partyId, slotsCp, {
-            includeSlotUrls: needUrlsCp,
-          }).then(function (data) {
-            return formatResolvedPartyShare(data, foCp);
+          var displayParty = partyId ? buildDisplayPartyUrl(originCp, pathnameCp, partyId) : '';
+          var slots6 = normalizeSlotsToSix(slotsCp);
+          return collectSlotUrls(originCp, pathnameCp, slots6, needUrlsCp).then(function (urls) {
+            return formatSlotsForCopy(slots6, foCp, { partyUrl: displayParty, sampleUrls: urls }, true);
           });
         })
         .then(function (text) {

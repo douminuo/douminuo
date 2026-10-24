@@ -1,18 +1,11 @@
-/* 요약 포맷 로직. 웹 UI는 없음 — popup 에서 formatSample 으로 사용 */
+/* 요약 포맷 — 슬롯 → 요약 복사 텍스트 (formatSlotsText) + 내구력 계산. SW 전용. */
 (function (global) {
   'use strict';
 
+  var SL = global.nuoSlotRead;
   var FC = global.nuoFmtCommon;
   var normalizeMatchKey = FC.normalizeMatchKey;
 
-  var STAT_MAP = [
-    { keys: ['HP', 'hp'], letter: 'H' },
-    { keys: ['공격'], letter: 'A' },
-    { keys: ['방어'], letter: 'B' },
-    { keys: ['특수공격', '특공'], letter: 'C' },
-    { keys: ['특수방어', '특방'], letter: 'D' },
-    { keys: ['스피드'], letter: 'S' },
-  ];
 
   var STAT_ORDER = 'HABCDS';
 
@@ -198,85 +191,9 @@
     return String(comp.physBuffed) + '/' + String(comp.specBuffed);
   }
 
-  function formatBulkLinesFromReals(
-    realByLetter,
-    enabled,
-    names,
-    itemRaw,
-    abilityRaw,
-    speciesTitleContext,
-    speciesTypesEn,
-    opts
-  ) {
-    if (!enabled) return '';
-    return formatBulkLinesFromComp(
-      computeBulkPhysSpecBuffed(
-        realByLetter,
-        names,
-        itemRaw,
-        abilityRaw,
-        speciesTitleContext,
-        speciesTypesEn,
-        opts
-      )
-    );
-  }
-
-  /** 팀빌더 인라인: 물리·특수 내구 최종값만 `물리/특수` */
-  function formatBulkCompactSlash(
-    realByLetter,
-    enabled,
-    names,
-    itemRaw,
-    abilityRaw,
-    speciesTitleContext,
-    speciesTypesEn
-  ) {
-    if (!enabled) return '';
-    return formatBulkCompactSlashFromComp(
-      computeBulkPhysSpecBuffed(
-        realByLetter,
-        names,
-        itemRaw,
-        abilityRaw,
-        speciesTitleContext,
-        speciesTypesEn
-      )
-    );
-  }
-
   function trimOrDash(s) {
     var t = (s || '').trim();
     return t ? t : '--';
-  }
-
-  function parseKeyValueLine(line) {
-    var m = line.match(/^(.+?)\s*:\s*(.*)$/);
-    if (!m) return null;
-    return { key: m[1].trim(), value: m[2].trim() };
-  }
-
-  function parseEvFromValue(value) {
-    var nums = value.match(/\d+/g);
-    if (!nums || nums.length < 2) return null;
-    return parseInt(nums[1], 10);
-  }
-
-  function parseRealFromValue(value) {
-    var nums = value.match(/\d+/g);
-    if (!nums || nums.length < 1) return null;
-    return parseInt(nums[0], 10);
-  }
-
-  function statLetterForKey(key) {
-    for (var r = 0; r < STAT_MAP.length; r++) {
-      var row = STAT_MAP[r];
-      for (var k = 0; k < row.keys.length; k++) {
-        var kk = row.keys[k];
-        if (key === kk || key.indexOf(kk + ' ') === 0) return row.letter;
-      }
-    }
-    return null;
   }
 
   /** 테라스탈 줄 생략: 비어 있음, 없음, 대시류 등 */
@@ -288,58 +205,6 @@
     if (low === '없음' || low === 'none' || low === 'n/a') return true;
     if (t === '無') return true;
     return false;
-  }
-
-  function isNameLine(line) {
-    if (!line || line.indexOf(':') !== -1) return false;
-    if (parseKeyValueLine(line)) return false;
-    var t = line.trim();
-    if (/^기술\s*\d/.test(t)) return false;
-    return true;
-  }
-
-  function extractNameFromTitle(title) {
-    var pipe = title.indexOf('|');
-    if (pipe === -1) return '';
-    return title.slice(pipe + 1).trim();
-  }
-
-  /** 줄 앞쪽이 #숫자 로 시작하면 새 샘플 블록의 시작으로 본다. */
-  function isSampleTitleLine(trimmed) {
-    return /^#\d+/.test(trimmed);
-  }
-
-  var BLOCK_SPLIT = '\n---\n';
-
-  function splitIntoSampleBlocks(raw) {
-    var normalized = raw.replace(/^\uFEFF/, '').replace(/\s+$/, '');
-    if (normalized.indexOf(BLOCK_SPLIT) !== -1) {
-      return normalized
-        .split(BLOCK_SPLIT)
-        .map(function (s) {
-          return s.trim();
-        })
-        .filter(Boolean);
-    }
-    var lines = normalized.split(/\r?\n/);
-    var starts = [];
-    var i;
-    for (i = 0; i < lines.length; i++) {
-      if (isSampleTitleLine(lines[i].trim())) {
-        starts.push(i);
-      }
-    }
-    if (starts.length === 0) {
-      var t = normalized;
-      return t ? [t] : [];
-    }
-    var blocks = [];
-    for (i = 0; i < starts.length; i++) {
-      var from = starts[i];
-      var to = i + 1 < starts.length ? starts[i + 1] : lines.length;
-      blocks.push(lines.slice(from, to).join('\n'));
-    }
-    return blocks;
   }
 
   function movePowerSuffix(cell) {
@@ -357,219 +222,90 @@
     return null;
   }
 
-  function formatSingleSample(raw, options) {
-    options = options || {};
-    var includeRealStats = !!options.includeRealStats;
+  /**
+   * 슬롯 하나 → 요약 블록.
+   * @param {{ movePowers?: Array, bulk?: object|null }} a background analyzeSlot 결과
+   */
+  function formatOneSlot(slot, idx1, a, options) {
+    var sampleTitle = SL.sampleName(slot);
+    var name = SL.speciesKo(slot);
+    var out = [];
+    if (options.numberedTitle) out.push('#' + idx1 + (sampleTitle ? ' | ' + sampleTitle : ''));
+    else if (sampleTitle && sampleTitle !== name) out.push(sampleTitle);
+    out.push(trimOrDash(name) + ' @' + trimOrDash(SL.item(slot)));
+    out.push(trimOrDash(SL.nature(slot)) + ' / ' + trimOrDash(SL.ability(slot)));
 
-    var lines = raw.split(/\r?\n/).map(function (l) {
-      return l.replace(/\s+$/, '');
-    });
-    if (!lines.length || !lines[0].trim()) {
-      return '';
-    }
-
-    var title = lines[0].trim();
-    var name = '';
-    var ability = { raw: '' };
-    var item = { raw: '' };
-    var nature = { raw: '' };
-    var terastal = { raw: '' };
-    var moves = ['', '', '', ''];
     var evParts = [];
-    var realByLetter = {};
-
-    var i = 1;
-    if (i < lines.length && lines[i].trim()) {
-      var candidate = lines[i].trim();
-      if (isNameLine(candidate) && !parseKeyValueLine(candidate)) {
-        name = candidate;
-        i++;
-      }
+    var reals = [];
+    var i;
+    for (i = 0; i < 6; i++) {
+      var st = SL.stat(slot, i);
+      if (st.sp) evParts.push(STAT_ORDER.charAt(i) + st.sp);
+      reals.push(String(st.real));
     }
+    if (evParts.length) out.push(evParts.join(' '));
 
-    for (; i < lines.length; i++) {
-      var line = lines[i].trim();
-      if (!line) continue;
-      var kv = parseKeyValueLine(line);
-      if (!kv) continue;
-
-      var key = kv.key.replace(/\s+/g, ' ').trim();
-      var val = kv.value;
-
-      if (key === '특성') {
-        ability.raw = val;
-        continue;
-      }
-      if (key === '도구') {
-        item.raw = val;
-        continue;
-      }
-      if (key === '성격') {
-        nature.raw = val;
-        continue;
-      }
-      if (key === '테라스탈') {
-        terastal.raw = val;
-        continue;
-      }
-
-      var moveMatch = key.match(/^기술\s*(\d)/);
-      if (moveMatch) {
-        var idx = parseInt(moveMatch[1], 10) - 1;
-        if (idx >= 0 && idx < 4) moves[idx] = val;
-        continue;
-      }
-
-      var letter = statLetterForKey(key);
-      if (letter) {
-        var ev = parseEvFromValue(val);
-        if (ev !== null && ev !== 0) evParts.push({ letter: letter, ev: ev });
-        var real = parseRealFromValue(val);
-        if (real !== null) realByLetter[letter] = real;
-      }
-    }
-
-    if (!name) name = extractNameFromTitle(title);
-    if (!name && isNameLine(title)) name = title;
-
-    evParts.sort(function (a, b) {
-      return STAT_ORDER.indexOf(a.letter) - STAT_ORDER.indexOf(b.letter);
-    });
-    var evLine = evParts
-      .map(function (p) {
-        return p.letter + p.ev;
-      })
-      .join(' ');
-
-    var realStatsLine = '';
-    if (includeRealStats) {
-      // BACKLOG #2: 기술배치상 전혀 안 쓰는 공격/특수공격 실능치는 'x'로 표시.
-      // movePowers[idx].cls 는 simpleMovePower.computeMovePowers 가 이미 계산해 둔
-      // 유효 물리/특수 판정(변화기·미해결 기술은 cell 자체가 null) — 그대로 재사용.
-      var mpForReal = options.movePowers;
+    var mp = a.movePowers;
+    if (options.includeRealStats) {
+      // BACKLOG #2: 기술배치상 전혀 안 쓰는 공격/특수공격 실능치는 'x'. cls = computeMovePowers 의 유효 물리/특수
+      // (변화기·미해결 기술은 cell 자체가 null).
       var usesPhysical = false;
       var usesSpecial = false;
       var anyMoveResolved = false;
-      if (Array.isArray(mpForReal)) {
-        for (var mvi = 0; mvi < mpForReal.length; mvi++) {
-          var mpCell = mpForReal[mvi];
-          if (!mpCell || typeof mpCell !== 'object') continue;
-          anyMoveResolved = true;
-          if (mpCell.cls === 'physical') usesPhysical = true;
-          else if (mpCell.cls === 'special') usesSpecial = true;
-        }
-      }
-
-      var seq = [];
-      var ok = true;
-      for (var ri = 0; ri < STAT_ORDER.length; ri++) {
-        var L = STAT_ORDER.charAt(ri);
-        if (realByLetter[L] === undefined) {
-          ok = false;
-          break;
-        }
-        if (anyMoveResolved && L === 'A' && !usesPhysical) {
-          seq.push('x');
-        } else if (anyMoveResolved && L === 'C' && !usesSpecial) {
-          seq.push('x');
-        } else {
-          seq.push(String(realByLetter[L]));
-        }
-      }
-      if (ok && seq.length === 6) {
-        realStatsLine = seq.join('-');
-      }
+      (mp || []).forEach(function (cell) {
+        if (!cell || typeof cell !== 'object') return;
+        anyMoveResolved = true;
+        if (cell.cls === 'physical') usesPhysical = true;
+        else if (cell.cls === 'special') usesSpecial = true;
+      });
+      if (anyMoveResolved && !usesPhysical) reals[1] = 'x';
+      if (anyMoveResolved && !usesSpecial) reals[3] = 'x';
+      out.push(reals.join('-'));
     }
 
-    var terastalLine = '';
-    if (!shouldOmitTerastal(terastal.raw)) {
-      terastalLine = '테라스탈: ' + terastal.raw.trim();
-    }
+    var tera = SL.tera(slot);
+    if (!shouldOmitTerastal(tera)) out.push('테라스탈: ' + tera);
+    if (options.includeBulkStats && a.bulk) out.push(formatBulkLinesFromComp(a.bulk));
 
-    var bulkContext = title.trim() + '\n' + (name || '').trim();
-    var bulkBlock = formatBulkLinesFromReals(
-      realByLetter,
-      !!options.includeBulkStats,
-      options.koNames,
-      item.raw,
-      ability.raw,
-      bulkContext,
-      options.speciesTypesEn,
-      { speciesName: (name || '').trim() }
+    var moves = SL.moves(slot);
+    out.push(
+      moves
+        .map(function (m, idx) {
+          var base = trimOrDash(m);
+          var suf = options.includeMovePowers && Array.isArray(mp) ? movePowerSuffix(mp[idx]) : null;
+          return suf && base !== '--' ? base + ' ' + suf : base;
+        })
+        .join(' / ')
     );
-
-    var includeMovePowers = !!options.includeMovePowers;
-    var movePowers = options.movePowers;
-    var moveLine = moves
-      .map(function (m, idx) {
-        var base = trimOrDash(m);
-        var suf =
-          includeMovePowers && Array.isArray(movePowers)
-            ? movePowerSuffix(movePowers[idx])
-            : null;
-        if (suf && base !== '--') {
-          return base + ' ' + suf;
-        }
-        return base;
-      })
-      .join(' / ');
-
-    // 샘플명 없이 종명만 첫 줄인 paste → 제목 줄 생략. 파티 `#1` 만 있는 줄은 유지.
-    var showTitle = !!title && !(name && title === name && !/^#\d+\s*$/.test(title));
-    var out = [];
-    if (showTitle) out.push(title);
-    out.push(trimOrDash(name) + ' @' + trimOrDash(item.raw));
-    out.push(trimOrDash(nature.raw) + ' / ' + trimOrDash(ability.raw));
-    if (evLine) out.push(evLine);
-    if (realStatsLine) out.push(realStatsLine);
-    if (terastalLine) out.push(terastalLine);
-    if (bulkBlock) out.push(bulkBlock);
-    out.push(moveLine);
-
     return out.join('\n');
   }
 
-  function formatSample(raw, options) {
+  /**
+   * 슬롯 목록 → 요약 복사 텍스트. 빈 칸은 생략. 인덱스 i = 슬롯 번호 i+1 (analyses·sampleUrls 같은 인덱스).
+   * @param {object[]} slots
+   * @param {object[]} analyses background analyzeSlot 결과
+   * @param {{ numberedTitle?: boolean, includeUrls?: boolean, includeRealStats?: boolean,
+   *   includeMovePowers?: boolean, includeBulkStats?: boolean, partyUrl?: string, sampleUrls?: string[] }} options
+   * @returns {string}
+   */
+  function formatSlotsText(slots, analyses, options) {
     options = options || {};
-    var blocks = splitIntoSampleBlocks(raw);
-    if (blocks.length === 0) {
-      return '';
-    }
     var includeUrls = options.includeUrls !== false;
-    var partyUrl = includeUrls ? (options.partyUrl && String(options.partyUrl).trim()) || '' : '';
-    var sampleUrls = includeUrls && Array.isArray(options.sampleUrls) ? options.sampleUrls : [];
-
-    var bmp = options.blockMovePowers;
-    var bst = options.blockSpeciesTypes;
+    var partyUrl = includeUrls ? String(options.partyUrl || '').trim() : '';
+    var sampleUrls = (includeUrls && options.sampleUrls) || [];
     var parts = [];
-    for (var b = 0; b < blocks.length; b++) {
-      var blockOpts = Object.assign({}, options);
-      if (bmp && Array.isArray(bmp[b])) {
-        blockOpts.movePowers = bmp[b];
-      } else {
-        delete blockOpts.movePowers;
-      }
-      if (bst && Array.isArray(bst[b])) {
-        blockOpts.speciesTypesEn = bst[b];
-      } else {
-        delete blockOpts.speciesTypesEn;
-      }
-      var one = formatSingleSample(blocks[b], blockOpts);
-      if (!one) continue;
-      var su =
-        includeUrls && sampleUrls[b] != null ? String(sampleUrls[b]).trim() : '';
-      if (su) parts.push(su + '\n' + one);
-      else parts.push(one);
-    }
+    slots.forEach(function (slot, i) {
+      if (SL.isEmpty(slot)) return;
+      var one = formatOneSlot(slot, i + 1, analyses[i] || {}, options);
+      var su = sampleUrls[i] ? String(sampleUrls[i]).trim() : '';
+      parts.push(su ? su + '\n' + one : one);
+    });
     var body = parts.join('\n\n');
-    if (partyUrl) return partyUrl + '\n\n' + body;
-    return body;
+    return partyUrl ? partyUrl + '\n\n' + body : body;
   }
 
-  global.formatSample = formatSample;
-  global.formatBulkLinesFromReals = formatBulkLinesFromReals;
-  global.formatBulkCompactSlash = formatBulkCompactSlash;
-  // F42 (2026-05-24): SW 가 한 번 계산하고 두 포맷터에 재사용하기 위한 직접 export.
+  global.formatSlotsText = formatSlotsText;
+  // F42: SW 가 한 번 계산한 comp 를 인라인 두 포맷에 재사용.
   global.computeBulkPhysSpecBuffed = computeBulkPhysSpecBuffed;
   global.formatBulkLinesFromComp = formatBulkLinesFromComp;
   global.formatBulkCompactSlashFromComp = formatBulkCompactSlashFromComp;

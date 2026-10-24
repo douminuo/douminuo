@@ -1,12 +1,9 @@
 /**
- * Smartnuo GET /api/party/share/:id JSON → formatSingleSample 이 기대하는 줄글.
- * 슬롯 필드 읽기는 slotRead.js (nuoSlotRead) — 본 파일은 줄글 조립·공유 응답 해석만.
+ * 스마트누오 공유 URL·응답 해석 (`#ps=` id, GET /api/party/share/:id 응답 모양).
+ * 요약 텍스트 조립은 formatter.formatSlotsText (슬롯에서 바로).
  */
 (function (global) {
   'use strict';
-
-  var SL = global.nuoSlotRead;
-  var STAT_LABELS_KO = ['HP', '공격', '방어', '특수공격', '특수방어', '스피드'];
 
   function extractPsId(s) {
     var m = String(s).match(/[#&?]ps=([^&#'"\s]+)/i);
@@ -95,88 +92,8 @@
     throw new Error('unknown_share_shape');
   }
 
-  var REAL_LETTERS_SIX = ['H', 'A', 'B', 'C', 'D', 'S'];
-
-  /**
-   * 팀빌더 슬롯 → formatter.formatBulkLinesFromReals 용 실수치 맵.
-   * @param {object} slot
-   * @returns {Record<string, number>}
-   */
-  function realByLetterFromSlot(slot) {
-    if (SL.isEmpty(slot)) return {};
-    var out = {};
-    var i;
-    for (i = 0; i < 6; i++) out[REAL_LETTERS_SIX[i]] = SL.stat(slot, i).real;
-    return out;
-  }
-
-  /**
-   * @param {object} slot
-   * @param {number} blockIndex1Based 파티 슬롯 번호(빈 슬롯 표기용). 비넘버 제목일 때는 1 넘겨도 됨.
-   * @param {{ numberedTitle?: boolean }|undefined} opts 파티만 true → 샘플명 있으면 `#1 | …`, 없으면 `#1` + 다음 줄 종명
-   * @returns {string}
-   */
-  function shareSlotToRaw(slot, blockIndex1Based, opts) {
-    opts = opts || {};
-    var numbered = opts.numberedTitle === true;
-
-    var idx = blockIndex1Based | 0;
-    if (idx < 1) idx = 1;
-
-    if (SL.isEmpty(slot)) {
-      var headEmpty = numbered ? '#' + idx : '--';
-      var linesE = [headEmpty, '특성 : --', '도구 : --', '성격 : --'];
-      var si;
-      for (si = 0; si < 6; si++) {
-        linesE.push(STAT_LABELS_KO[si] + ' : 0 0');
-      }
-      linesE.push('기술1 : --');
-      linesE.push('기술2 : --');
-      linesE.push('기술3 : --');
-      linesE.push('기술4 : --');
-      return linesE.join('\n');
-    }
-
-    var sampleTitle = SL.sampleName(slot);
-    var speciesLine = SL.speciesKo(slot);
-    var lines = [];
-    if (numbered) {
-      lines.push(sampleTitle ? '#' + idx + ' | ' + sampleTitle : '#' + idx);
-    } else if (sampleTitle) {
-      lines.push(sampleTitle);
-    }
-    if (speciesLine && (!sampleTitle || speciesLine !== sampleTitle)) {
-      lines.push(speciesLine);
-    }
-    if (!lines.length) {
-      lines.push(numbered ? '#' + idx : '--');
-    }
-
-    lines.push('특성 : ' + (SL.ability(slot) || '--'));
-    lines.push('도구 : ' + (SL.item(slot) || '--'));
-    lines.push('성격 : ' + (SL.nature(slot) || '--'));
-
-    var ter = SL.tera(slot);
-    if (ter) lines.push('테라스탈 : ' + ter);
-
-    var i;
-    for (i = 0; i < 6; i++) {
-      var st = SL.stat(slot, i);
-      lines.push(STAT_LABELS_KO[i] + ' : ' + st.real + ' ' + st.sp);
-    }
-
-    var moves = SL.moves(slot);
-    for (i = 0; i < 4; i++) {
-      lines.push('기술' + (i + 1) + ' : ' + (moves[i] || '--'));
-    }
-
-    return lines.join('\n');
-  }
-
   global.shareToRaw = {
     classifyShareGetResponse: classifyShareGetResponse,
-    shareSlotToRaw: shareSlotToRaw,
-    realByLetterFromSlot: realByLetterFromSlot,
     extractPsId: extractPsId,
     normalizePartyUrlInput: normalizePartyUrlInput,
   };
