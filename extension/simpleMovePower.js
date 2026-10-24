@@ -3,7 +3,7 @@
  *   u = 위력 특성(테크니션·태그·우격·-스킨·타입특성) 순차 floor, l = 실수치 특성·구애·종 한정 도구 순차 floor,
  *   d = 자속·생명의구슬·힘의머리띠·[맹화]·타입도구/플레이트/주얼·날씨·필드·급소·재앙 (floor 없이 곱).
  * computeMovePowers: { base, buffed, cls } — base 는 조건부 특성 효과 제외(표기용). cls 는 physical|special.
- * 한글 기술명 → moveKoMap.json 조회 (PokeAPI 공식 한글명 + 소수 별칭).
+ * 한글 기술명·도구·특성 → koNames.js 해석기(names) — 사이트 표기 우선.
  * 맹화·모래의힘·선파워: HP·실제 날씨는 보지 않고 배율만 적용.
  * 날씨·필드: 이 포켓몬 특성의 setsWeather / setsTerrain 만 반영.
  *
@@ -14,8 +14,6 @@
   'use strict';
 
   var FC = global.nuoFmtCommon;
-  var readLabel = FC.readLabel;
-  var findFirstRuleAndSlugForHold = FC.findFirstRuleAndSlugForHold;
   var SR = globalThis.shareToRaw;  // C3: hold 정규화용
 
   /** 한글 타입명 → PokeAPI type.name */
@@ -41,11 +39,6 @@
     스텔라: 'stellar',
   };
 
-  function koByNameTable(moveKoMap) {
-    if (moveKoMap && moveKoMap.byKo && typeof moveKoMap.byKo === 'object') return moveKoMap.byKo;
-    return null;
-  }
-
   function normalizeTypeToEn(t) {
     if (t == null || t === '') return '';
     var s = String(t).trim();
@@ -55,42 +48,15 @@
     return TYPE_KO_TO_EN[s] || TYPE_KO_TO_EN[s.replace(/\s/g, '')] || '';
   }
 
-  function findRuleFromLabels(rules, sectionKey, raw) {
-    var map = rules && rules[sectionKey] && typeof rules[sectionKey] === 'object' ? rules[sectionKey] : null;
-    var found = findFirstRuleAndSlugForHold(map, raw);
-    return found ? found.rule : null;
-  }
-
-  function findItemRule(rules, hold) {
-    return findRuleFromLabels(rules, 'items', hold);
-  }
-
-  function findAbilityRule(rules, abilityRaw) {
-    return findRuleFromLabels(rules, 'abilities', abilityRaw);
-  }
-
   function num(v, fallback) {
     var n = parseFloat(v);
     if (isNaN(n) || n <= 0) return fallback;
     return n;
   }
 
-  function showdownMoveIdFromLabel(lab, moveKoMap) {
-    var raw = readLabel(lab);
-    if (!raw) return '';
-    var table = koByNameTable(moveKoMap);
-    if (table) {
-      var noSpace = raw.replace(/\s+/g, '');
-      if (table[noSpace]) return table[noSpace];
-      if (table[raw]) return table[raw];
-    }
-    var s = raw.trim().toLowerCase();
-    return s.replace(/[^a-z0-9]/g, '');
-  }
-
-  function showdownMoveIdFromMove(mv, moveKoMap) {
+  function showdownMoveIdFromMove(mv, names) {
     if (mv == null || typeof mv !== 'object' || Array.isArray(mv)) {
-      return showdownMoveIdFromLabel(mv, moveKoMap);
+      return names.move(mv);
     }
     var order = [
       'nameEn',
@@ -105,19 +71,19 @@
     var seen = {};
     var i;
     for (i = 0; i < order.length; i++) {
-      var t = readLabel(mv[order[i]]);
+      var t = FC.readLabel(mv[order[i]]);
       if (!t || seen[t]) continue;
       seen[t] = true;
-      var id = showdownMoveIdFromLabel(t, moveKoMap);
+      var id = names.move(t);
       if (id) return id;
     }
     return '';
   }
 
-  function getMoveTags(moveTagsBundle, mv, moveKoMap, moveId) {
+  function getMoveTags(moveTagsBundle, mv, names, moveId) {
     var out = {};
     if (!moveTagsBundle || !moveTagsBundle.moves || typeof moveTagsBundle.moves !== 'object') return out;
-    var id = arguments[3] != null ? arguments[3] : showdownMoveIdFromMove(mv, moveKoMap);
+    var id = arguments[3] != null ? arguments[3] : showdownMoveIdFromMove(mv, names);
     if (!id) return out;
     var row = moveTagsBundle.moves[id];
     if (!row || typeof row !== 'object') return out;
@@ -194,7 +160,7 @@
     itemRule,
     abilityRule,
     moveTagsBundle,
-    moveKoMap
+    names
   ) {
     // === Step 1: 입력 검증 — mv·power·damage_class null/0/status 조기 리턴 ===
     if (!mv || typeof mv !== 'object') return null;
@@ -211,7 +177,7 @@
     if (!isPhys && !isSpec) return null;
 
     // === Step 2: stat 결정 — photongeyser(공특 최대치)·bodypress(방어)·일반 ===
-    var moveId = arguments[9] != null ? arguments[9] : showdownMoveIdFromMove(mv, moveKoMap);
+    var moveId = arguments[9] != null ? arguments[9] : showdownMoveIdFromMove(mv, names);
 
     // 웨더볼·대지의파동: 특성의 날씨/필드를 따라감 — 조건부(깔기·날씨 의존 특성)라 base 는 원래 기술,
     // buffed 는 날씨/필드 타입·위력 100 으로 다시 계산. 메가솔라(selfWeather)는 아래 Step 3 에서 base 까지.
@@ -230,11 +196,11 @@
       if (fixType) {
         var plain = oneMovePowerInternalDual(
           Object.assign({}, mv, { nuoResolved: true }),
-          atkReal, spaReal, defReal, speciesTypesEn, itemRule, ar0, moveTagsBundle, moveKoMap, moveId
+          atkReal, spaReal, defReal, speciesTypesEn, itemRule, ar0, moveTagsBundle, names, moveId
         );
         var boosted = oneMovePowerInternalDual(
           Object.assign({}, mv, { nuoResolved: true, power: 100, type: fixType }),
-          atkReal, spaReal, defReal, speciesTypesEn, itemRule, ar2, moveTagsBundle, moveKoMap, moveId
+          atkReal, spaReal, defReal, speciesTypesEn, itemRule, ar2, moveTagsBundle, names, moveId
         );
         if (!plain || !boosted) return plain || boosted;
         return { base: plain.base, buffed: boosted.buffed, cls: plain.cls };
@@ -293,7 +259,7 @@
       ateMul = num(ar.atePowerMul, 1.2);
     }
 
-    var tags = getMoveTags(moveTagsBundle, mv, moveKoMap, moveId);
+    var tags = getMoveTags(moveTagsBundle, mv, names, moveId);
     var abBoostT = ar.boostType != null ? String(ar.boostType).toLowerCase().trim() : '';
     var abTypeHit = !!abBoostT && moveTypeEn === abBoostT;
 
@@ -402,12 +368,11 @@
   /**
    * @param {object} slotData Smartnuo 공유 data 객체
    * @param {string[]} speciesTypesEn
-   * @param {object|null} rules modifiers 전체 또는 null
+   * @param {object} names koNames.forDocs(...) 해석기 (도구·특성 규칙, 기술 id)
    * @param {object|null} moveTagsJson moveTags.json 전체 또는 null
-   * @param {object|null} moveKoMap moveKoMap.json (byKo: 한글→Showdown id)
    * @returns {({ base: number, buffed: number, cls: string }|null)[]}
    */
-  function computeMovePowers(slotData, speciesTypesEn, rules, moveTagsJson, moveKoMap) {
+  function computeMovePowers(slotData, speciesTypesEn, names, moveTagsJson) {
     var out = [null, null, null, null];
     var poke = slotData && slotData.pokemon;
     if (!poke || !Array.isArray(poke.moves)) return out;
@@ -415,9 +380,10 @@
     // F10: SR.flattenSlot 단일 출처 사용 (옛 flattenPokemonSlot 사본 제거).
     // C3: SR.str() 로 equipment/ability 정규화 — 문자열/객체 양쪽 진입 통일.
     var flat = SR.flattenSlot(slotData);
-    var itemRule = findItemRule(rules || {}, SR.str(flat.equipment || flat.item || flat.Item || flat.hold));
-    if (!FC.ruleFitsSpecies(itemRule, SR.speciesNameLine(flat))) itemRule = null;
-    var abilityRule = findAbilityRule(rules || {}, SR.str(flat.ability || flat.ab || flat.Ability));
+    var itemHit = names.itemRule(SR.str(flat.equipment || flat.item || flat.Item || flat.hold));
+    var itemRule = itemHit && FC.ruleFitsSpecies(itemHit.rule, SR.speciesNameLine(flat)) ? itemHit.rule : null;
+    var abilityHit = names.abilityRule(SR.str(flat.ability || flat.ab || flat.Ability));
+    var abilityRule = abilityHit ? abilityHit.rule : null;
 
     var stats = poke.stats || {};
     var atk =
@@ -437,7 +403,7 @@
     for (i = 0; i < 4 && i < moves.length; i++) {
       var mv = moves[i];
       // F49: 슬롯당 showdown id 1회만 해석.
-      var moveId = showdownMoveIdFromMove(mv, moveKoMap);
+      var moveId = showdownMoveIdFromMove(mv, names);
       // F8: 단일 호출로 base + buffed 동시 산출.
       var pair = oneMovePowerInternalDual(
         mv,
@@ -448,7 +414,7 @@
         itemRule,
         abilityRule,
         moveTagsJson,
-        moveKoMap,
+        names,
         moveId
       );
       out[i] = pair;

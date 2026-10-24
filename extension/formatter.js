@@ -5,7 +5,6 @@
   var FC = global.nuoFmtCommon;
   var readLabel = FC.readLabel;
   var normalizeMatchKey = FC.normalizeMatchKey;
-  var findFirstRuleAndSlugForHold = FC.findFirstRuleAndSlugForHold;
 
   var STAT_MAP = [
     { keys: ['HP', 'hp'], letter: 'H' },
@@ -21,16 +20,15 @@
   /** 나무위키·커뮤 관행: (HP실×방어실)/k, (HP실×특방실)/k. 괄호: modifiers.json 도구·특성·패앙·고대활성 등 + 모래날림/눈퍼뜨리기(타입 조건). README「내구력 — 구현 범위」참고. */
   var BULK_REAL_DIVISOR = 0.411;
 
-  function findItemBulkRule(modifiersDoc, itemRaw) {
-    if (!modifiersDoc || !modifiersDoc.items) return null;
-    var found = findFirstRuleAndSlugForHold(modifiersDoc.items, itemRaw);
+  /** names = koNames.forDocs(...) 해석기 */
+  function findItemBulkRule(names, itemRaw) {
+    var found = names && names.itemRule(itemRaw);
     var r = found && found.rule;
     return r && (r.bulkDefMul != null || r.bulkSpdMul != null) ? r : null;
   }
 
-  function findAbilityRuleWithSlug(modifiersDoc, abilityRaw) {
-    if (!modifiersDoc || !modifiersDoc.abilities) return null;
-    return findFirstRuleAndSlugForHold(modifiersDoc.abilities, abilityRaw);
+  function findAbilityRuleWithSlug(names, abilityRaw) {
+    return names ? names.abilityRule(abilityRaw) : null;
   }
 
   function numBulkMul(v, fallback) {
@@ -122,7 +120,7 @@
    */
   function computeBulkPhysSpecBuffed(
     realByLetter,
-    modifiersDoc,
+    names,
     itemRaw,
     abilityRaw,
     speciesTitleContext,
@@ -148,7 +146,7 @@
       if (m.spd !== 1) dEff = Math.floor(dEff * m.spd);
     }
 
-    var abFound = findAbilityRuleWithSlug(modifiersDoc, abilityRaw);
+    var abFound = findAbilityRuleWithSlug(names, abilityRaw);
     var arule = (abFound && abFound.rule) || {};
     if (abFound) {
       if (abFound.slug === 'embody-aspect' && arule.bulkEmbodyAspect) {
@@ -167,7 +165,7 @@
       }
     }
 
-    var itemRule = findItemBulkRule(modifiersDoc, itemRaw);
+    var itemRule = findItemBulkRule(names, itemRaw);
     var speciesName = opts && opts.speciesName != null ? opts.speciesName : speciesTitleContext;
     if (itemRule && FC.ruleFitsSpecies(itemRule, speciesName)) {
       var im = bulkMultipliersFromRule(itemRule);
@@ -204,7 +202,7 @@
   function formatBulkLinesFromReals(
     realByLetter,
     enabled,
-    modifiersDoc,
+    names,
     itemRaw,
     abilityRaw,
     speciesTitleContext,
@@ -215,7 +213,7 @@
     return formatBulkLinesFromComp(
       computeBulkPhysSpecBuffed(
         realByLetter,
-        modifiersDoc,
+        names,
         itemRaw,
         abilityRaw,
         speciesTitleContext,
@@ -229,7 +227,7 @@
   function formatBulkCompactSlash(
     realByLetter,
     enabled,
-    modifiersDoc,
+    names,
     itemRaw,
     abilityRaw,
     speciesTitleContext,
@@ -239,7 +237,7 @@
     return formatBulkCompactSlashFromComp(
       computeBulkPhysSpecBuffed(
         realByLetter,
-        modifiersDoc,
+        names,
         itemRaw,
         abilityRaw,
         speciesTitleContext,
@@ -493,7 +491,7 @@
     var bulkBlock = formatBulkLinesFromReals(
       realByLetter,
       !!options.includeBulkStats,
-      options.modifiersDocument,
+      options.koNames,
       item.raw,
       ability.raw,
       bulkContext,

@@ -7,7 +7,6 @@ const vm = require('vm');
 const root = path.join(__dirname, '..');
 const fmtCommonPath = path.join(root, 'extension', 'fmtCommon.js');
 const formatterPath = path.join(root, 'extension', 'formatter.js');
-const modifiersPath = path.join(root, 'extension', 'modifiers.json');
 
 const ctx = { globalThis: {}, self: {}, console };
 ctx.globalThis = ctx.self = ctx;
@@ -15,7 +14,7 @@ vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(fmtCommonPath, 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(formatterPath, 'utf8'), ctx);
 const formatSample = ctx.formatSample;
-const modifiersDocument = JSON.parse(fs.readFileSync(modifiersPath, 'utf8'));
+const koNames = require('./lib/koNamesForSmoke').koNamesForSmoke(ctx);
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -39,7 +38,7 @@ const raw = [
 const out = formatSample(raw, {
   includeBulkStats: true,
   includeUrls: false,
-  modifiersDocument,
+  koNames,
 });
 const wantPhys = Math.floor((125 * 50) / 0.411);
 const wantSpec = Math.floor((125 * 60) / 0.411);
@@ -50,7 +49,7 @@ const iPhys = out.indexOf('물리내구력');
 const iMove = out.indexOf('Tackle');
 assert(iTera !== -1 && iPhys > iTera && iMove > iPhys, 'order: 테라스탈 → 내구력 → 기술');
 
-const off = formatSample(raw, { includeBulkStats: false, includeUrls: false, modifiersDocument });
+const off = formatSample(raw, { includeBulkStats: false, includeUrls: false, koNames });
 assert(!off.includes('물리내구력'), 'off switch');
 
 const rawVest2 = [
@@ -73,7 +72,7 @@ const rawVest2 = [
 const vestOut = formatSample(rawVest2, {
   includeBulkStats: true,
   includeUrls: false,
-  modifiersDocument,
+  koNames,
 });
 const specBase = Math.floor((100 * 80) / 0.411);
 const specBuff = Math.floor((100 * Math.floor(80 * 1.5)) / 0.411);
@@ -87,7 +86,7 @@ const rawKee = rawVest2.replace('돌격조끼', '악키열매');
 const keeOut = formatSample(rawKee, {
   includeBulkStats: true,
   includeUrls: false,
-  modifiersDocument,
+  koNames,
 });
 const physBaseKee = Math.floor((100 * 80) / 0.411);
 const physBuffKee = Math.floor((100 * Math.floor(80 * 1.5)) / 0.411);
@@ -100,7 +99,7 @@ const rawFur = rawVest2.replace('특성 : --', '특성 : 퍼코트').replace('�
 const furOut = formatSample(rawFur, {
   includeBulkStats: true,
   includeUrls: false,
-  modifiersDocument,
+  koNames,
 });
 const furPhysBase = Math.floor((100 * 80) / 0.411);
 const furPhysBuff = Math.floor((100 * Math.floor(80 * 2)) / 0.411);
@@ -114,7 +113,7 @@ const rawTablets = rawVest2.replace('특성 : --', '특성 : 재앙의목간');
 const tabOut = formatSample(rawTablets, {
   includeBulkStats: true,
   includeUrls: false,
-  modifiersDocument,
+  koNames,
 });
 const tabPhysBase = Math.floor((100 * 80) / 0.411);
 var tabB = Math.floor(80 * (4 / 3));
@@ -130,7 +129,7 @@ const rawSand = rawVest2
 const sandOut = formatSample(rawSand, {
   includeBulkStats: true,
   includeUrls: false,
-  modifiersDocument,
+  koNames,
   blockSpeciesTypes: [['rock', 'dark']],
 });
 const sandSpecBase = Math.floor((100 * 80) / 0.411);
@@ -147,7 +146,7 @@ assert(
 const sandNoRockOut = formatSample(rawSand, {
   includeBulkStats: true,
   includeUrls: false,
-  modifiersDocument,
+  koNames,
   blockSpeciesTypes: [['dark', 'flying']],
 });
 assert(
@@ -159,7 +158,7 @@ const rawSnow = rawVest2.replace('특성 : --', '특성 : 눈퍼뜨리기');
 const snowOut = formatSample(rawSnow, {
   includeBulkStats: true,
   includeUrls: false,
-  modifiersDocument,
+  koNames,
   blockSpeciesTypes: [['ice']],
 });
 const snowPhysBase = Math.floor((100 * 80) / 0.411);
@@ -223,24 +222,24 @@ assert(unresolved.includes('125-100-50-90-60-80'), 'all-null cells: all numeric:
 
 // 파동의방호: 조건부(접촉) 물리내구 ×2 — 인라인(excludeConditional)엔 미반영, 샘플 텍스트 경로엔 반영.
 const agReal = { H: 100, B: 100, D: 100 };
-const agAll = ctx.computeBulkPhysSpecBuffed(agReal, modifiersDocument, '', '파동의방호', '', []);
+const agAll = ctx.computeBulkPhysSpecBuffed(agReal, koNames, '', '파동의방호', '', []);
 assert(agAll.physBuffed === Math.floor((100 * 100 * 2) / 0.411) && agAll.specBuffed === agAll.specBase, '파동의방호 물리 ×2 (최종 S): ' + JSON.stringify(agAll));
-const agInline = ctx.computeBulkPhysSpecBuffed(agReal, modifiersDocument, '', '파동의방호', '', [], { excludeConditionalAbilities: true });
+const agInline = ctx.computeBulkPhysSpecBuffed(agReal, koNames, '', '파동의방호', '', [], { excludeConditionalAbilities: true });
 assert(agInline.physBuffed === agInline.physBase, '파동의방호 인라인 제외: ' + JSON.stringify(agInline));
 
 // 사이트 durability: 방어 쪽 배율은 하나씩 floor, 멀티스케일 등(bulkFinal)은 최종 곱.
 const r97 = { H: 100, B: 97, D: 97 };
-const marvelVest = ctx.computeBulkPhysSpecBuffed(r97, modifiersDocument, '돌격조끼', '이상한비늘', '', []);
+const marvelVest = ctx.computeBulkPhysSpecBuffed(r97, koNames, '돌격조끼', '이상한비늘', '', []);
 assert(marvelVest.physBuffed === Math.floor((100 * Math.floor(97 * 1.5)) / 0.411), '이상한비늘 방어 floor: ' + JSON.stringify(marvelVest));
 assert(marvelVest.specBuffed === Math.floor((100 * Math.floor(97 * 1.5)) / 0.411), '돌격조끼 특방 floor: ' + JSON.stringify(marvelVest));
-const ms = ctx.computeBulkPhysSpecBuffed(r97, modifiersDocument, '', '멀티스케일', '', []);
+const ms = ctx.computeBulkPhysSpecBuffed(r97, koNames, '', '멀티스케일', '', []);
 assert(ms.physBuffed === Math.floor((100 * 97 * 2) / 0.411), '멀티스케일 최종 S: ' + JSON.stringify(ms));
 // 종 한정: 금속파우더 = 메타몽만.
-assert(ctx.computeBulkPhysSpecBuffed(r97, modifiersDocument, '금속파우더', '', '메타몽', []).physBuffed === Math.floor((100 * 194) / 0.411), '금속파우더 메타몽');
-const mpOther = ctx.computeBulkPhysSpecBuffed(r97, modifiersDocument, '금속파우더', '', '피카츄', []);
+assert(ctx.computeBulkPhysSpecBuffed(r97, koNames, '금속파우더', '', '메타몽', []).physBuffed === Math.floor((100 * 194) / 0.411), '금속파우더 메타몽');
+const mpOther = ctx.computeBulkPhysSpecBuffed(r97, koNames, '금속파우더', '', '피카츄', []);
 assert(mpOther.physBuffed === mpOther.physBase, '금속파우더 다른 종 = 효과 없음');
 // 샘플 제목에 종명이 들어가도 판정은 opts.speciesName (실제 종) 기준.
-const mpTitle = ctx.computeBulkPhysSpecBuffed(r97, modifiersDocument, '금속파우더', '', '메타몽 카운터\n피카츄', [], { speciesName: '피카츄' });
+const mpTitle = ctx.computeBulkPhysSpecBuffed(r97, koNames, '금속파우더', '', '메타몽 카운터\n피카츄', [], { speciesName: '피카츄' });
 assert(mpTitle.physBuffed === mpTitle.physBase, '금속파우더 제목에 메타몽 = 효과 없음');
 
 console.log('smoke-formatter: ok');

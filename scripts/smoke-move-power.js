@@ -8,12 +8,8 @@ const root = path.join(__dirname, '..');
 const fmtCommonPath = path.join(root, 'extension', 'fmtCommon.js');
 const shareToRawPath = path.join(root, 'extension', 'shareToRaw.js');
 const simplePath = path.join(root, 'extension', 'simpleMovePower.js');
-const modifiers = JSON.parse(fs.readFileSync(path.join(root, 'extension', 'modifiers.json'), 'utf8'));
 const moveTags = JSON.parse(fs.readFileSync(path.join(root, 'extension', 'moveTags.json'), 'utf8'));
-const moveKo = JSON.parse(fs.readFileSync(path.join(root, 'extension', 'moveKoMap.json'), 'utf8'));
-// 런타임(background.js computeBlockPowersForSlot)과 같게 사이트 표기 fallback 병합.
-const moveKoFb = JSON.parse(fs.readFileSync(path.join(root, 'extension', 'moveKoFallback.json'), 'utf8')).byKo;
-for (const k of Object.keys(moveKoFb)) if (moveKo.byKo[k] == null) moveKo.byKo[k] = moveKoFb[k];
+const { koNamesForSmoke } = require('./lib/koNamesForSmoke');
 
 const ctx = { globalThis: {}, self: {}, console };
 ctx.globalThis = ctx.self = ctx;
@@ -22,13 +18,14 @@ vm.runInContext(fs.readFileSync(fmtCommonPath, 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(shareToRawPath, 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(simplePath, 'utf8'), ctx);
 const SMP = ctx.simpleMovePower;
+const names = koNamesForSmoke(ctx);
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
 function cmp(slot, types) {
-  return SMP.computeMovePowers(slot, types, modifiers, moveTags, moveKo);
+  return SMP.computeMovePowers(slot, types, names, moveTags);
 }
 
 const firePunch = {

@@ -1,5 +1,6 @@
 importScripts('shareToRaw.js');
 importScripts('fmtCommon.js');
+importScripts('koNames.js');
 importScripts('formatter.js');
 importScripts('calcPayload.js');
 importScripts('simpleMovePower.js');
@@ -150,6 +151,35 @@ importScripts('showdownPaste.js');
   );
 
   /**
+   * 한글 이름 해석기 (koNames.js) — 도구·특성·기술, 사이트 표기(*KoFallback) 우선. SW 라이프타임 1회 빌드.
+   * shortcut: 로드 실패 시 빈 문서로 만든 해석기가 SW 종료까지 캐시됨 — SW 재시작이 잦아 실사용 영향 작음.
+   */
+  var koNamesPromise = null;
+  function loadKoNames() {
+    if (koNamesPromise) return koNamesPromise;
+    koNamesPromise = Promise.all([
+      ensureModifiersLoaded(),
+      loadJsonUrl('itemKoMap.json', { byKo: {} }),
+      loadJsonUrl('itemKoFallback.json', { byKo: {} }),
+      loadJsonUrl('abilityKoMap.json', { byKo: {} }),
+      loadJsonUrl('abilityKoFallback.json', { byKo: {} }),
+      ensureMoveKoMapLoaded(),
+      loadJsonUrl('moveKoFallback.json', { version: 0, byKo: {} }),
+    ]).then(function (arr) {
+      return globalThis.nuoKoNames.forDocs({
+        modifiers: arr[0],
+        itemMap: arr[1],
+        itemSite: arr[2],
+        abilityMap: arr[3],
+        abilitySite: arr[4],
+        moveMap: arr[5],
+        moveSite: arr[6],
+      });
+    });
+    return koNamesPromise;
+  }
+
+  /**
    * F41: 계산기 자동입력 GET_CALC_PAYLOADS_FROM_SLOT 의 8개 doc 묶음 (옛 URL 경로
    * GET_CALC_PAYLOADS 와 공유하던 헬퍼 — URL 경로는 REDESIGN §11 에서 제거).
    *
@@ -158,7 +188,7 @@ importScripts('showdownPaste.js');
    *
    * @returns {Promise<{
    *   natureKoDoc: object, natureStatMulDoc: object, typeKoDoc: object,
-   *   moveKoFallbackDoc: object, modifiersDoc: object, moveKoDoc: object,
+   *   moveKoFallbackDoc: object, koNames: object, moveKoDoc: object,
    *   moveSlugToEnDoc: object, moveTagsDoc: object,
    * }>}
    */
@@ -168,7 +198,7 @@ importScripts('showdownPaste.js');
       loadJsonUrl('natureStatMul.json', { bySlug: {} }),
       loadJsonUrl('typeKoMap.json', { byKo: {} }),
       loadJsonUrl('moveKoFallback.json', { version: 0, byKo: {} }),
-      ensureModifiersLoaded(),
+      loadKoNames(),
       ensureMoveKoMapLoaded(),
       // 본 라운드: 슬러그 정규화 (hyphenless → hyphenated) — calcPayload 가 한 번만 reduce.
       // 옛 코드는 hyphen 위치를 모르고 sequential 추측해 ~10 sequential 404 (~2~4초).
@@ -180,7 +210,7 @@ importScripts('showdownPaste.js');
         natureStatMulDoc: arr[1],
         typeKoDoc: arr[2],
         moveKoFallbackDoc: arr[3],
-        modifiersDoc: arr[4],
+        koNames: arr[4],
         moveKoDoc: arr[5],
         moveSlugToEnDoc: arr[6],
         moveTagsDoc: arr[7],
@@ -377,22 +407,17 @@ importScripts('showdownPaste.js');
       });
     }
     return Promise.all([
-      ensureModifiersLoaded(),
+      loadKoNames(),
       ensureMoveTagsLoaded(),
-      ensureMoveKoMapLoaded(),
       resolveSpeciesTypesForSlot(slotData),
       loadJsonUrl('natureKoMap.json', { koToSlug: {} }),
       loadJsonUrl('natureStatMul.json', { bySlug: {} }),
-      loadJsonUrl('moveKoFallback.json', { version: 0, byKo: {} }),
     ]).then(function (arr) {
-      var rules = arr[0];
+      var names = arr[0];
       var moveTags = arr[1];
-      var moveKo = arr[2];
-      // 사이트 표기(moveKoFallback) 도 한글명 lookup 에 포함 — 영문 name 없는 기술 대비. idempotent.
-      mergeByKoPaste(moveKo, arr[6]);
-      var types = arr[3];
-      var natureKoDoc = arr[4];
-      var natureStatMulDoc = arr[5];
+      var types = arr[2];
+      var natureKoDoc = arr[3];
+      var natureStatMulDoc = arr[4];
       // 결정력 입력만 폼 보정한 클론으로 교체. 내구력/그 외 소비자는 원본 slotData 사용.
       var slotForPower = slotData;
       if (AFO && typeof AFO.applyAttackerFormOverride === 'function') {
@@ -403,7 +428,7 @@ importScripts('showdownPaste.js');
         );
       }
       return {
-        movePowers: SMP.computeMovePowers(slotForPower, types, rules, moveTags, moveKo),
+        movePowers: SMP.computeMovePowers(slotForPower, types, names, moveTags),
         speciesTypesEn: types || [],
       };
     });
@@ -520,9 +545,7 @@ importScripts('showdownPaste.js');
    * GET_CALC_PAYLOADS 등)에서 거듭 fetch + JSON.parse 하던 낭비를 SW 라이프타임
    * 메모이제이션으로 제거. 성공한 결과만 캐시 (실패면 다음 호출이 재시도).
    *
-   * 주의: 호출자가 결과 객체를 변형(mutate)하는 경우 캐시도 같이 변형된다.
-   * loadPasteBundleDocs의 mergeByKoPaste 가 moveKoMap 의 byKo 를 덮어쓰지만
-   * `if (base[k] == null)` 가드로 idempotent — 재호출 시 no-op.
+   * 주의: 결과 객체는 캐시와 공유 — 변형(mutate) 금지.
    */
   var jsonDocCache = Object.create(null);    // fileName → resolved doc
   var jsonInflight = Object.create(null);    // fileName → in-flight Promise
@@ -549,42 +572,18 @@ importScripts('showdownPaste.js');
     return p;
   }
 
-  function mergeByKoPaste(baseDoc, fallbackDoc) {
-    var base = baseDoc && baseDoc.byKo;
-    var fb = fallbackDoc && fallbackDoc.byKo;
-    if (!base || !fb) return;
-    var k;
-    for (k in fb) {
-      if (!Object.prototype.hasOwnProperty.call(fb, k)) continue;
-      if (base[k] == null) base[k] = fb[k];
-    }
-  }
-
   function loadPasteBundleDocs() {
     return Promise.all([
-      loadJsonUrl('moveKoMap.json', { byKo: {} }),
-      loadJsonUrl('moveKoFallback.json', { version: 0, byKo: {} }),
+      loadKoNames(),
       loadJsonUrl('moveSlugToEn.json', { bySlug: {} }),
       loadJsonUrl('natureKoMap.json', { koToSlug: {} }),
-      loadJsonUrl('itemKoMap.json', { byKo: {} }),
-      loadJsonUrl('abilityKoMap.json', { byKo: {} }),
       loadJsonUrl('typeKoMap.json', { byKo: {} }),
-      loadJsonUrl('modifiers.json', { version: 0, items: {}, abilities: {} }),
-      loadJsonUrl('itemKoFallback.json', { byKo: {} }),
-      loadJsonUrl('abilityKoFallback.json', { byKo: {} }),
     ]).then(function (arr) {
-      mergeByKoPaste(arr[0], arr[1]);
-      // 도구·특성 fallback = 사이트 표기 (scripts/audit-ko-names-vs-site.js) → PokéAPI 맵보다 우선 (예: 대파 = leek)
-      if (arr[4].byKo) Object.assign(arr[4].byKo, arr[8].byKo);
-      if (arr[5].byKo) Object.assign(arr[5].byKo, arr[9].byKo);
       return {
-        moveKoDoc: arr[0],
-        moveSlugToEnDoc: arr[2],
-        natureKoDoc: arr[3],
-        itemKoDoc: arr[4],
-        abilityKoDoc: arr[5],
-        typeKoDoc: arr[6],
-        modifiersDocument: arr[7],
+        koNames: arr[0],
+        moveSlugToEnDoc: arr[1],
+        natureKoDoc: arr[2],
+        typeKoDoc: arr[3],
       };
     });
   }
@@ -627,29 +626,17 @@ importScripts('showdownPaste.js');
       return pSampleUrl.then(function (sampleUrl) {
         var urlStr = sampleUrl ? String(sampleUrl).trim() : '';
         var pasteRaw = SR.shareSlotToRaw(slotData, 1, { numberedTitle: false });
-        var modP = ensureModifiersLoaded();
-
         if (fo.showdownPaste) {
-          return Promise.all([modP, loadPasteBundleDocs()]).then(function (twice) {
-            var mod = twice[0];
-            var docs = twice[1];
+          return loadPasteBundleDocs().then(function (docs) {
             var slotsOne = [cloneShareSlot(slotData)];
             var BSP = globalThis.buildShowdownPaste;
             if (typeof BSP !== 'function') return pasteRaw;
-            var out = BSP(slotsOne, {
-              modifiersDocument: mod,
-              moveKoDoc: docs.moveKoDoc,
-              moveSlugToEnDoc: docs.moveSlugToEnDoc,
-              natureKoDoc: docs.natureKoDoc,
-              itemKoDoc: docs.itemKoDoc,
-              abilityKoDoc: docs.abilityKoDoc,
-              typeKoDoc: docs.typeKoDoc,
-            });
+            var out = BSP(slotsOne, docs);
             return out || pasteRaw;
           });
         }
 
-        return modP.then(function (mod) {
+        return loadKoNames().then(function (names) {
           var fmt = globalThis.formatSample;
           if (typeof fmt !== 'function') return pasteRaw;
           var sampleUrls = urlStr ? [urlStr] : [''];
@@ -662,7 +649,7 @@ importScripts('showdownPaste.js');
             sampleUrls: sampleUrls,
             blockMovePowers: [pack.movePowers],
             blockSpeciesTypes: [pack.speciesTypesEn],
-            modifiersDocument: mod,
+            koNames: names,
           };
           return fmt(pasteRaw, opts) || '';
         });
@@ -683,25 +670,15 @@ importScripts('showdownPaste.js');
       if (!Array.isArray(slots) || slots.length === 0) {
         return Promise.resolve(pasteRaw);
       }
-      return Promise.all([ensureModifiersLoaded(), loadPasteBundleDocs()]).then(function (twice) {
-        var mod = twice[0];
-        var docs = twice[1];
+      return loadPasteBundleDocs().then(function (docs) {
         var BSP = globalThis.buildShowdownPaste;
         if (typeof BSP !== 'function') return pasteRaw;
-        var out = BSP(slots, {
-          modifiersDocument: mod,
-          moveKoDoc: docs.moveKoDoc,
-          moveSlugToEnDoc: docs.moveSlugToEnDoc,
-          natureKoDoc: docs.natureKoDoc,
-          itemKoDoc: docs.itemKoDoc,
-          abilityKoDoc: docs.abilityKoDoc,
-          typeKoDoc: docs.typeKoDoc,
-        });
+        var out = BSP(slots, docs);
         return out || pasteRaw;
       });
     }
 
-    return ensureModifiersLoaded().then(function (mod) {
+    return loadKoNames().then(function (names) {
       var fmt = globalThis.formatSample;
       if (typeof fmt !== 'function') return pasteRaw;
       var opts = {
@@ -713,7 +690,7 @@ importScripts('showdownPaste.js');
         sampleUrls: Array.isArray(data.sampleUrls) ? data.sampleUrls : [],
         blockMovePowers: data.blockMovePowers,
         blockSpeciesTypes: data.blockSpeciesTypes,
-        modifiersDocument: mod,
+        koNames: names,
       };
       return fmt(pasteRaw, opts) || '';
     });
@@ -842,7 +819,7 @@ importScripts('showdownPaste.js');
       }
       computeBlockPowersForSlot(slotAn)
         .then(function (pack) {
-          return ensureModifiersLoaded().then(function (mod) {
+          return loadKoNames().then(function (names) {
             var MPS = globalThis.movePowerSuffixFormatter;
             var reals = SR.realByLetterFromSlot(slotAn);
             var flat = SR.flattenSlot(slotAn);
@@ -857,7 +834,7 @@ importScripts('showdownPaste.js');
             // F51 (2026-05-24): 인라인 어노 컨텍스트 — 풀체력 조건부 특성 (멀티스케일·스펙터가드 등) skip.
             var comp =
               typeof CBP === 'function'
-                ? CBP(reals, mod, itemRaw, abilityRaw, titleCtx, pack.speciesTypesEn, {
+                ? CBP(reals, names, itemRaw, abilityRaw, titleCtx, pack.speciesTypesEn, {
                     excludeConditionalAbilities: true,
                     speciesName: SR.str(SR.speciesNameLine(flat)),
                   })

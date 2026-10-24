@@ -6,7 +6,6 @@
   var FC = global.nuoFmtCommon;
   var readLabel = FC.readLabel;
   var normalizeMatchKey = FC.normalizeMatchKey;
-  var findFirstRuleAndSlugForHold = FC.findFirstRuleAndSlugForHold;
 
   function asInt(v) {
     if (v === null || v === undefined || v === '') return null;
@@ -63,37 +62,12 @@
     return readLabel(s.nameKr || s.speciesName || s.speciesKo || s.species) || '';
   }
 
-  function resolveItemEn(modifiersDoc, itemKoDoc, itemRaw) {
-    var found =
-      modifiersDoc && modifiersDoc.items
-        ? findFirstRuleAndSlugForHold(modifiersDoc.items, itemRaw)
-        : null;
-    if (found && found.slug) return slugToDisplayName(found.slug);
-    var lab = readLabel(
-      typeof itemRaw === 'object' && itemRaw && !Array.isArray(itemRaw)
-        ? itemRaw.slug || itemRaw.id || itemRaw.name
-        : itemRaw
-    );
-    if (!lab || lab === '--') return '';
-    if (/^[a-z0-9-]+$/i.test(lab.replace(/\s/g, '')) && lab.indexOf(' ') < 0)
-      return slugToDisplayName(lab.replace(/\s+/g, '-').toLowerCase());
-    var slugI = itemKoDoc && itemKoDoc.byKo && itemKoDoc.byKo[lab];
-    if (slugI) return slugToDisplayName(slugI);
-    return lab;
-  }
-
-  function resolveAbilityEn(modifiersDoc, abilityKoDoc, abilityRaw) {
-    var lab = readLabel(abilityRaw);
-    if (!lab || lab === '--') return '';
-    if (modifiersDoc && modifiersDoc.abilities) {
-      var found = findFirstRuleAndSlugForHold(modifiersDoc.abilities, abilityRaw);
-      if (found && found.slug) return slugToDisplayName(found.slug);
-    }
-    var slugA = abilityKoDoc && abilityKoDoc.byKo && abilityKoDoc.byKo[lab];
-    if (slugA) return slugToDisplayName(slugA);
-    if (/^[a-z0-9-]+$/i.test(lab.replace(/\s/g, '')) && lab.indexOf(' ') < 0)
-      return slugToDisplayName(lab.replace(/\s+/g, '-').toLowerCase());
-    return lab;
+  /** 도구·특성 라벨 → Showdown 영문 표시명. 못 풀면 라벨 그대로 (kind = names.item | names.ability). */
+  function resolveHoldEn(kind, raw) {
+    var slug = kind(raw);
+    if (slug) return slugToDisplayName(slug);
+    var lab = readLabel(raw);
+    return lab === '--' ? '' : lab;
   }
 
   function natureToEnglish(raw, koToSlug) {
@@ -133,24 +107,13 @@
     return c;
   }
 
-  function moveToEnglish(moveKoDoc, bySlug, compactIdx, koLabel) {
+  function moveToEnglish(names, compactIdx, koLabel) {
     var k = String(koLabel || '').trim();
     if (!k || k === '--') return '';
-    var slug = (moveKoDoc && moveKoDoc.byKo && moveKoDoc.byKo[k]) || '';
-    if (slug) {
-      if (bySlug[slug]) return bySlug[slug];
-      var comp = String(slug).replace(/-/g, '');
-      if (compactIdx[comp]) return compactIdx[comp];
-      return slugToDisplayName(slug);
-    }
-    if (/^[a-z0-9-]+$/i.test(k)) {
-      var low = k.toLowerCase();
-      if (bySlug[low]) return bySlug[low];
-      var c2 = low.replace(/-/g, '');
-      if (compactIdx[c2]) return compactIdx[c2];
-      return slugToDisplayName(low);
-    }
-    return k;
+    var id = names.move(k);
+    if (!id) return k;
+    // 영문 목록에 없으면: 영문 slug 입력은 하이픈 살려 표시, 한글은 id 로 (옛 동작 그대로).
+    return compactIdx[id] || slugToDisplayName(/^[a-z0-9-]+$/i.test(k) ? k.toLowerCase() : id);
   }
 
   function shouldOmitTerastal(value) {
@@ -213,11 +176,11 @@
     var species = speciesEnglishFromSlot(s);
     if (!species) species = 'Pokemon';
 
-    var itemStr = resolveItemEn(ctx.modifiersDocument, ctx.itemKoDoc, SR.str(s.equipment || s.item || s.Item || s.hold));
+    var itemStr = resolveHoldEn(ctx.names.item, SR.str(s.equipment || s.item || s.Item || s.hold));
     var head = itemStr ? species + ' @ ' + itemStr : species;
 
     var lines = [head];
-    var ab = resolveAbilityEn(ctx.modifiersDocument, ctx.abilityKoDoc, SR.str(s.ability || s.ab || s.Ability));
+    var ab = resolveHoldEn(ctx.names.ability, SR.str(s.ability || s.ab || s.Ability));
     if (ab) lines.push('Ability: ' + ab);
 
     var lv = getLevel(s);
@@ -246,7 +209,7 @@
     var moves = SR.getMoves ? SR.getMoves(slot) : ['', '', '', ''];
     var mi;
     for (mi = 0; mi < 4; mi++) {
-      var en = moveToEnglish(ctx.moveKoDoc, ctx.bySlugMove, ctx.compactMove, moves[mi]);
+      var en = moveToEnglish(ctx.names, ctx.compactMove, moves[mi]);
       if (en) lines.push('- ' + en);
     }
 
@@ -255,28 +218,21 @@
 
   /**
    * @param {object[]} slots
-   * @param {{ modifiersDocument: object, moveKoDoc: object, moveSlugToEnDoc: object, natureKoDoc: object, itemKoDoc?: object, abilityKoDoc?: object, typeKoDoc?: object }} opts
+   * @param {{ koNames: object, moveSlugToEnDoc: object, natureKoDoc: object, typeKoDoc?: object }} opts
+   *   koNames = koNames.forDocs(...) 해석기 (도구·특성·기술)
    */
   function buildShowdownPaste(slots, opts) {
     if (!SR) return '';
     opts = opts || {};
-    var mod = opts.modifiersDocument || { items: {}, abilities: {} };
-    var moveKo = opts.moveKoDoc || { byKo: {} };
     var moveEn = (opts.moveSlugToEnDoc && opts.moveSlugToEnDoc.bySlug) || {};
     var natDoc = opts.natureKoDoc || {};
     var koToSlugNature = natDoc.koToSlug || {};
-    var itemKoDoc = opts.itemKoDoc || { byKo: {} };
-    var abilityKoDoc = opts.abilityKoDoc || { byKo: {} };
     var typeKoDoc = opts.typeKoDoc || { byKo: {} };
 
     var ctx = {
-      modifiersDocument: mod,
-      moveKoDoc: moveKo,
-      bySlugMove: moveEn,
+      names: opts.koNames,
       compactMove: getCompactMoveEnIndex(moveEn),
       koToSlugNature: koToSlugNature,
-      itemKoDoc: itemKoDoc,
-      abilityKoDoc: abilityKoDoc,
       typeKoDoc: typeKoDoc,
     };
 

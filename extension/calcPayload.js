@@ -281,48 +281,16 @@
   }
 
   /**
-   * modifiers.json abilities: nameKo 일치 시 setsWeather / setsTerrain (simpleMovePower 와 동일 키).
+   * 특성 → modifiers.json setsWeather / setsTerrain (simpleMovePower 와 동일 키). names = koNames 해석기.
    * @returns {{ abilityWeatherKey: string|null, abilityTerrainKey: string|null }}
    */
-  /** F39: abilities 맵 nameKo → weather/terrain 키 (first-set-wins). */
-  var getAbilityEnvIx = memoizeByDocRef(function (abs) {
-    var ix = Object.create(null);
-    var slug;
-    var r;
-    var nk;
-    for (slug in abs) {
-      if (!Object.prototype.hasOwnProperty.call(abs, slug)) continue;
-      r = abs[slug];
-      if (!r || typeof r !== 'object') continue;
-      nk = String(r.nameKo || '').trim();
-      if (!nk || ix[nk]) continue;
-      ix[nk] = {
-        abilityWeatherKey:
-          r.setsWeather != null && String(r.setsWeather).trim() !== ''
-            ? String(r.setsWeather).toLowerCase().trim()
-            : null,
-        abilityTerrainKey:
-          r.setsTerrain != null && String(r.setsTerrain).trim() !== ''
-            ? String(r.setsTerrain).toLowerCase().trim()
-            : null,
-      };
+  function envKeysFromAbilityKo(abilityKo, names) {
+    var hit = names.abilityRule(str(abilityKo));
+    var r = (hit && hit.rule) || {};
+    function key(v) {
+      return v != null && String(v).trim() !== '' ? String(v).toLowerCase().trim() : null;
     }
-    return ix;
-  });
-
-  function envKeysFromAbilityKo(abilityKo, modifiersDoc) {
-    var out = { abilityWeatherKey: null, abilityTerrainKey: null };
-    var k = str(abilityKo);
-    if (!k || !modifiersDoc || !modifiersDoc.abilities || typeof modifiersDoc.abilities !== 'object') {
-      return out;
-    }
-    var abs = modifiersDoc.abilities;
-    var ix = getAbilityEnvIx(abs);
-    var hit = ix[k];
-    if (!hit) return out;
-    out.abilityWeatherKey = hit.abilityWeatherKey;
-    out.abilityTerrainKey = hit.abilityTerrainKey;
-    return out;
+    return { abilityWeatherKey: key(r.setsWeather), abilityTerrainKey: key(r.setsTerrain) };
   }
 
   function itemKoFromFlat(flat) {
@@ -464,22 +432,13 @@
   }
 
   /**
-   * F0: 한글/영문 기술명 → Showdown식 id (하이픈 없는 형태).
-   * 빌드 타임 번들(moveKoMap, moveKoFallback)을 단일 출처로 사용 — 런타임 PokéAPI 호출 없음.
-   * - 영문 slug 입력은 그대로 (소문자, 하이픈 제거).
-   * - 한글 입력은 moveKoMap.byKo → moveKoFallback.byKo (사이트 표기 ≠ PokéAPI ko 는 fallback 에 수록).
+   * F0: 한글/영문 기술명 → Showdown식 id (하이픈 없는 형태). koNames 해석기 (빌드 타임 번들, 사이트 표기 우선)
+   * — 런타임 PokéAPI 호출 없음.
    */
-  function showdownIdFromMoveLabel(label, moveKoDoc, moveKoFallbackDoc) {
+  function showdownIdFromMoveLabel(label, names) {
     var t = normalizeMoveLabel(label);
     if (!t || t === '--') return null;
-    if (/^[a-z0-9][a-z0-9-]*$/.test(t)) {
-      return t.toLowerCase().replace(/-/g, '');
-    }
-    var byKo = (moveKoDoc && moveKoDoc.byKo) || null;
-    var byKoFb = (moveKoFallbackDoc && moveKoFallbackDoc.byKo) || null;
-    if (byKo && Object.prototype.hasOwnProperty.call(byKo, t)) return byKo[t];
-    if (byKoFb && Object.prototype.hasOwnProperty.call(byKoFb, t)) return byKoFb[t];
-    return null;
+    return names.move(t) || null;
   }
 
   /**
@@ -491,7 +450,7 @@
    * 본 라운드(#5 픽스) 이후: slugCanonicalMap 으로 hyphenless → hyphenated 1회 lookup →
    * 일반 케이스에서 단일 fetch. 신규 폼/번들 미커버 시에만 sequential 추측 폴백.
    */
-  function firstDamagingMoveMeta(slot, moveKoDoc, moveKoFallbackDoc, slugCanonicalMap) {
+  function firstDamagingMoveMeta(slot, names, slugCanonicalMap) {
     var moves = SR.getMoves(slot);
     var chain = Promise.resolve(null);
     var mi;
@@ -501,7 +460,7 @@
           if (found) return found;
           var ko = (moves[idx] || '').trim();
           if (!ko || ko === '--') return null;
-          var sdId = showdownIdFromMoveLabel(ko, moveKoDoc, moveKoFallbackDoc);
+          var sdId = showdownIdFromMoveLabel(ko, names);
           if (!sdId) return null;
           return resolveMoveMetaFromShowdownStyleId(sdId, slugCanonicalMap).then(function (meta) {
             if (!meta) return null;
@@ -664,7 +623,7 @@
   /**
    * 슬롯 하나(팀빌더 bridge 의 단일 슬롯)에서 한쪽 페이로드를 만든다.
    * @param {object} slot raw slot (SR.flattenSlot 적용 가능한 형태)
-   * @param {object} docs natureKoDoc / natureStatMulDoc / typeKoDoc / moveKoDoc / moveKoFallbackDoc / modifiersDoc / moveSlugToEnDoc / moveTagsDoc
+   * @param {object} docs natureKoDoc / natureStatMulDoc / typeKoDoc / moveKoDoc / moveKoFallbackDoc / koNames / moveSlugToEnDoc / moveTagsDoc
    * @param {'attacker'|'defender'} role
    * @param {'calc'|'speed'=} page — 미지정·옛 호출자는 'calc'. 스피드 계산기는 move 없이 nature.spe 만 반영.
    * @returns {Promise<object>} { error } 또는 페이로드
@@ -687,7 +646,7 @@
     var level = levelFromFlat(flat);
 
     if (page === 'speed') {
-      var envSp = envKeysFromAbilityKo(abilityKoFromFlat(flat), docs.modifiersDoc);
+      var envSp = envKeysFromAbilityKo(abilityKoFromFlat(flat), docs.koNames);
       var persSp = 1;
       if (nr.row) persSp = personalityScalar(nr.row.spe);
       return Promise.resolve({
@@ -704,7 +663,7 @@
     }
 
     if (role === 'defender') {
-      var defEnv = envKeysFromAbilityKo(abilityKoFromFlat(flat), docs.modifiersDoc);
+      var defEnv = envKeysFromAbilityKo(abilityKoFromFlat(flat), docs.koNames);
       return Promise.resolve({
         speciesKo: speciesKo,
         evs: evs,
@@ -728,7 +687,7 @@
     );
     var packPromise = localPack
       ? Promise.resolve(localPack)
-      : firstDamagingMoveMeta(slot, docs.moveKoDoc, docs.moveKoFallbackDoc, slugMap);
+      : firstDamagingMoveMeta(slot, docs.koNames, slugMap);
     return packPromise.then(function (movePack) {
       var physicalMove = true;
       if (movePack && movePack.meta && movePack.meta.damage_class === 'special') {
@@ -740,7 +699,7 @@
         attackerPersonality = personalityScalar(physicalMove ? nr.row.atk : nr.row.spa);
       }
 
-      var atkEnv = envKeysFromAbilityKo(abilityKoFromFlat(flat), docs.modifiersDoc);
+      var atkEnv = envKeysFromAbilityKo(abilityKoFromFlat(flat), docs.koNames);
       // F40 (2026-05-23): moveTagsDoc 는 docs 묶음에 미리 들어 있음 — SW 가 1회 로드.
       var moveTagsDoc = (docs && docs.moveTagsDoc) || { moves: {} };
       return Promise.resolve({
