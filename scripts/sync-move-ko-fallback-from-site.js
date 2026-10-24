@@ -1,6 +1,6 @@
 /**
  * 스마트누오 현재 기술 도감 표기(GET /api/move → [{ en, kr, power }]) 중
- * moveKoMap.json + moveKoFallback.json 으로 풀리지 않는 한글명을 moveKoFallback.json 에 추가.
+ * 사이트 표기대로 안 풀리는 한글명(미수록·PokéAPI 와 다른 id)을 moveKoFallback.json(사이트 표기 유일 출처)에 추가.
  * (moveKoMap 은 PokéAPI ko 기준이라 드래곤클로/드래곤크루 같은 표기 차이·신규 기술이 빠짐.)
  *
  *   node scripts/sync-move-ko-fallback-from-site.js
@@ -41,17 +41,16 @@ async function main() {
     const ko = String(r.kr || '').replace(/\s+/g, '');
     const id = String(r.en || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     if (!ko || !id || !/[가-힣]/.test(ko) || !tags[id]) continue;
-    const cur = byKoMain[ko] != null ? byKoMain[ko] : fb.byKo[ko];
+    // koNames.js 와 같은 우선순위: 사이트 표기(fallback) → PokéAPI 맵.
+    const cur = fb.byKo[ko] != null ? fb.byKo[ko] : byKoMain[ko];
     if (cur === id) continue;
-    if (cur != null) {
-      conflicts.push(ko + ': ' + cur + ' (사이트 ' + id + ')');
-      continue;
-    }
+    // PokéAPI 맵과 다르면 사이트 표기를 fallback 에 넣어 이기게 함 (KO_NAMES_PLAN §2).
+    if (cur != null) conflicts.push(ko + ': ' + cur + ' → 사이트 ' + id);
     fb.byKo[ko] = id;
     added.push(ko + '=' + id);
   }
 
-  if (conflicts.length) console.warn('기존 매핑과 충돌 (유지):', conflicts);
+  if (conflicts.length) console.warn('PokéAPI 맵과 달라 사이트 표기로 덮음:', conflicts);
   if (!added.length) {
     console.log('추가할 항목 없음');
     return;

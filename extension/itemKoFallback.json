@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "note": "스마트누오 표기 → slug. 확장이 itemKoMap 위에 덮어씀(사이트 표기 우선). 채우기 = node scripts/audit-ko-names-vs-site.js --write. 대파 = 사이트 leek (PokeAPI 맵은 stick).",
+  "version": 3,
+  "note": "사이트 표기(스마트누오) → slug. 도구 한글 이름의 사이트 표기 유일 출처 — koNames.js 가 PokeAPI 맵보다 먼저 봄, sync-names-ko.js 가 modifiers nameKo 에 씀. 채우기 = node scripts/audit-ko-names-vs-site.js --write. 대파 = 사이트 leek (PokeAPI 맵은 stick).",
   "byKo": {
     "펀치글러브": "punching-glove",
     "대파": "leek",
@@ -59,6 +59,8 @@
     "할비롱나이트": "drampanite",
     "화염레오나이트": "pyroarite",
     "히드런나이트": "heatranite",
-    "검은오물": "black-sludge"
+    "검은오물": "black-sludge",
+    "요정의깃털": "fairy-feather",
+    "우뢰플레이트": "zap-plate"
   }
 }

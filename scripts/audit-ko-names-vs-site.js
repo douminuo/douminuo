@@ -1,15 +1,16 @@
 /**
- * 스마트누오 한글 표기 vs 우리 데이터(PokéAPI ko 출처) 대조 (SMARTNUO_RE_PLAN K).
+ * 스마트누오 한글 표기 vs 우리 데이터 대조 (SMARTNUO_RE_PLAN K) — 해석은 확장과 같은 extension/koNames.js.
  *
  *   node scripts/audit-ko-names-vs-site.js           # 보고만
- *   node scripts/audit-ko-names-vs-site.js --write   # unresolved 를 extension/{item,ability}KoFallback.json 에 추가
+ *   node scripts/audit-ko-names-vs-site.js --write   # unresolved 를 extension/{item,ability}KoFallback.json(사이트 표기 유일 출처)에 추가
  *
  * 대조:
  *  - 특성·도구: 사이트 GET /api/ability?for=party · /api/equipment?for=party ([{ en, kr }])
- *    nameKoDiff: modifiers.json nameKo ≠ 사이트 kr (같은 slug) → 사이트 슬롯 도구·특성 매칭 실패
- *                → scripts/{item,ability}-ko-site.json 에 넣고 sync-names-ko.js 재실행
- *    unresolved: 사이트 kr 이 런타임 경로로 안 풀림 (Showdown 복사 때 한글 그대로 나감) → --write
- *    wrongSlug:  다른 slug 로 풀림 → 손으로 판단 (같은 한글명이 둘인 혼연일체 등은 그대로 둠)
+ *    unresolved: 사이트 kr 이 koNames 로 안 풀림 (Showdown 복사 때 한글 그대로 나감) → --write
+ *    wrongSlug:  다른 slug 로 풀림 → 손으로 판단. 사이트 표기 파일에 넣으면 이김 (예: 대파 = leek).
+ *                같은 한글명이 둘인 혼연일체 등은 그대로 둠
+ *    nameKoDiff: modifiers.json nameKo ≠ 사이트 kr (같은 slug) → 사이트 표기 파일에 있으면
+ *                node scripts/sync-names-ko.js --kind item|ability 로 nameKo 맞춤
  *  - 포켓몬: regulationSpeedTable 이름 · modifiers speciesKo 가 사이트 GET /api/pokemon kr 에 없음
  *    (스피드표 묶음 이름 "펌킨인(대과종)" 등은 표시 전용이라 그대로 둠)
  *
@@ -20,6 +21,8 @@
 
 const fs = require('fs');
 const path = require('path');
+const vm = require('vm');
+const { koNamesDocs, koNamesForSmoke } = require('./lib/koNamesForSmoke');
 
 const EXT = path.join(__dirname, '..', 'extension');
 const CACHE_DIR = path.join(__dirname, '.cache');
@@ -47,13 +50,8 @@ function toSlug(en) {
 
 const normKo = (s) => String(s || '').replace(/\s+/g, '');
 
-// 런타임(showdownPaste resolveItemEn/AbilityEn)과 같은 순서: modifiers nameKo → *KoFallback → *KoMap
-// (background loadPasteBundleDocs 가 fallback 을 맵 위에 덮음).
-function auditKind(label, rows, modSection, mapFile, fbFile) {
-  const modByKo = {};
-  for (const slug of Object.keys(modSection)) if (modSection[slug].nameKo) modByKo[normKo(modSection[slug].nameKo)] = slug;
-  const byKo = readExt(mapFile).byKo;
-  const fb = readExt(fbFile);
+// resolve = names.item | names.ability (koNames.js), fb = 사이트 표기 문서 (--write 대상)
+function auditKind(label, rows, modSection, resolve, fb, fbFile) {
   const out = { nameKoDiff: [], unresolved: [], wrongSlug: [] };
   for (const r of rows) {
     const slug = toSlug(r.en);
@@ -61,7 +59,7 @@ function auditKind(label, rows, modSection, mapFile, fbFile) {
     if (!slug || !kr || /custom/.test(slug)) continue; // 사이트 커스텀 항목(mega-sol-custom 등)은 우리 데이터 밖
     const mod = modSection[slug];
     if (mod && mod.nameKo && normKo(mod.nameKo) !== kr) out.nameKoDiff.push(slug + ': 우리 "' + mod.nameKo + '" / 사이트 "' + r.kr + '"');
-    const got = modByKo[kr] || fb.byKo[kr] || byKo[kr];
+    const got = resolve(kr) || null;
     if (got == null) out.unresolved.push([kr, slug]);
     else if (got !== slug) out.wrongSlug.push('"' + r.kr + '": 우리 ' + got + ' / 사이트 ' + slug);
   }
@@ -84,10 +82,16 @@ async function main() {
     loadSite('equipment?for=party', 'smartnuo-equipment-party.json'),
     loadSite('pokemon', 'smartnuo-pokemon-dex.json'),
   ]);
-  const mod = readExt('modifiers.json');
+  const docs = koNamesDocs();
+  const ctx = { console };
+  ctx.globalThis = ctx.self = ctx;
+  vm.createContext(ctx);
+  vm.runInContext(fs.readFileSync(path.join(EXT, 'fmtCommon.js'), 'utf8'), ctx);
+  const names = koNamesForSmoke(ctx, docs);
+  const mod = docs.modifiers;
 
-  auditKind('특성', abilities, mod.abilities, 'abilityKoMap.json', 'abilityKoFallback.json');
-  auditKind('도구', items, mod.items, 'itemKoMap.json', 'itemKoFallback.json');
+  auditKind('특성', abilities, mod.abilities, names.ability, docs.abilitySite, 'abilityKoFallback.json');
+  auditKind('도구', items, mod.items, names.item, docs.itemSite, 'itemKoFallback.json');
 
   const siteKr = new Set(pokemon.map((p) => normKo(p.kr)));
   const ours = new Set();
