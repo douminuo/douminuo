@@ -575,8 +575,8 @@ importScripts('showdownPaste.js');
     ]).then(function (arr) {
       mergeByKoPaste(arr[0], arr[1]);
       // 도구·특성 fallback = 사이트 표기 (scripts/audit-ko-names-vs-site.js) → PokéAPI 맵보다 우선 (예: 대파 = leek)
-      Object.assign(arr[4].byKo, arr[8].byKo);
-      Object.assign(arr[5].byKo, arr[9].byKo);
+      if (arr[4].byKo) Object.assign(arr[4].byKo, arr[8].byKo);
+      if (arr[5].byKo) Object.assign(arr[5].byKo, arr[9].byKo);
       return {
         moveKoDoc: arr[0],
         moveSlugToEnDoc: arr[2],
