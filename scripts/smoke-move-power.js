@@ -361,4 +361,11 @@ const lbSlot = (nameKr) => cmp({ pokemon: { name_kr: nameKr, moves: [thunder], s
 assert(lbSlot('피카츄').buffed === Math.floor(90 * 200 * 1.5), '전기구슬 피카츄 특공 ×2');
 assert(lbSlot('라이츄').buffed === Math.floor(90 * 100 * 1.5), '전기구슬 다른 종 = 효과 없음');
 
+// 바디프레스 = 방어 실수치, 공격 배율(구애머리띠·천하장사) 안 붙음.
+const bodyPress = { name: 'body-press', power: '80', damage_class: 'physical', type: 'Fighting' };
+const bpSlot = (extra) =>
+  cmp(Object.assign({ pokemon: { moves: [bodyPress], stats: { attack: { real: 100 }, defense: { real: 150 }, special_attack: { real: 100 } } } }, extra), ['fighting'])[0];
+assert(bpSlot({ equipment: '구애머리띠' }).buffed === Math.floor(80 * 150 * 1.5), '바디프레스 + 구애머리띠 = 효과 없음: ' + JSON.stringify(bpSlot({ equipment: '구애머리띠' })));
+assert(bpSlot({ ability: '천하장사' }).buffed === Math.floor(80 * 150 * 1.5), '바디프레스 + 천하장사 = 효과 없음');
+
 console.log('smoke-move-power: ok');

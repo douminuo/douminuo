@@ -299,16 +299,18 @@
 
     // === Step 4: 실수치 l — 사이트처럼 배율마다 floor (특성 → 조건부 특성 → 도구) ===
     // 강철술사·수포(typedMulOnStat)는 사이트에 없음 — Showdown 처럼 실수치 보정 자리에 둠.
+    // 바디프레스는 방어 실수치 — 공격 배율(구애머리띠·천하장사·진홍빛고동 등)은 안 붙음 (Showdown ModifyDef).
+    var atkStat = isPhys && moveId !== 'bodypress';
     var lBase = stat;
-    if (isPhys && ar.atkMulPhysical != null) lBase = Math.floor(lBase * num(ar.atkMulPhysical, 1));
+    if (atkStat && ar.atkMulPhysical != null) lBase = Math.floor(lBase * num(ar.atkMulPhysical, 1));
     if (isSpec && ar.spaMulSpecial != null) lBase = Math.floor(lBase * num(ar.spaMulSpecial, 1));
     if (abTypeHit && ar.typedMulOnStat) lBase = Math.floor(lBase * num(ar.typedPowerMul, 1));
     var lBuffed = lBase;
     if (isSpec && ar.spaBoostInSun != null) lBuffed = Math.floor(lBuffed * num(ar.spaBoostInSun, 1.5));
-    if (isPhys && ar.condAtkMulPhysical != null) lBuffed = Math.floor(lBuffed * num(ar.condAtkMulPhysical, 1));
+    if (atkStat && ar.condAtkMulPhysical != null) lBuffed = Math.floor(lBuffed * num(ar.condAtkMulPhysical, 1));
     if (isSpec && ar.condSpaMulSpecial != null) lBuffed = Math.floor(lBuffed * num(ar.condSpaMulSpecial, 1));
     function itemStat(l) {
-      if (isPhys && ir.atkMulPhysical != null) l = Math.floor(l * num(ir.atkMulPhysical, 1));
+      if (atkStat && ir.atkMulPhysical != null) l =Math.floor(l * num(ir.atkMulPhysical, 1));
       if (isSpec && ir.spaMulSpecial != null) l = Math.floor(l * num(ir.spaMulSpecial, 1));
       return l;
     }

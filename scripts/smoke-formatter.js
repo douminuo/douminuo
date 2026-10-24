@@ -239,5 +239,8 @@ assert(ms.physBuffed === Math.floor((100 * 97 * 2) / 0.411), '멀티스케일 �
 assert(ctx.computeBulkPhysSpecBuffed(r97, modifiersDocument, '금속파우더', '', '메타몽', []).physBuffed === Math.floor((100 * 194) / 0.411), '금속파우더 메타몽');
 const mpOther = ctx.computeBulkPhysSpecBuffed(r97, modifiersDocument, '금속파우더', '', '피카츄', []);
 assert(mpOther.physBuffed === mpOther.physBase, '금속파우더 다른 종 = 효과 없음');
+// 샘플 제목에 종명이 들어가도 판정은 opts.speciesName (실제 종) 기준.
+const mpTitle = ctx.computeBulkPhysSpecBuffed(r97, modifiersDocument, '금속파우더', '', '메타몽 카운터\n피카츄', [], { speciesName: '피카츄' });
+assert(mpTitle.physBuffed === mpTitle.physBase, '금속파우더 제목에 메타몽 = 효과 없음');
 
 console.log('smoke-formatter: ok');

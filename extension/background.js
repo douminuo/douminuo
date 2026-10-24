@@ -859,6 +859,7 @@ importScripts('showdownPaste.js');
               typeof CBP === 'function'
                 ? CBP(reals, mod, itemRaw, abilityRaw, titleCtx, pack.speciesTypesEn, {
                     excludeConditionalAbilities: true,
+                    speciesName: SR.str(SR.speciesNameLine(flat)),
                   })
                 : null;
             var bulkText = typeof FBLC === 'function' ? FBLC(comp) || '' : '';

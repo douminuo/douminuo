@@ -117,6 +117,7 @@
    *
    * @param {object} [opts]
    * @param {boolean} [opts.excludeConditionalAbilities]
+   * @param {string} [opts.speciesName] 종 한정 도구 판정용 종명 — 없으면 speciesTitleContext (샘플 제목 섞이면 오판)
    * @returns {{ physBase: number, specBase: number, physBuffed: number, specBuffed: number }|null}
    */
   function computeBulkPhysSpecBuffed(
@@ -167,7 +168,8 @@
     }
 
     var itemRule = findItemBulkRule(modifiersDoc, itemRaw);
-    if (itemRule && FC.ruleFitsSpecies(itemRule, speciesTitleContext)) {
+    var speciesName = opts && opts.speciesName != null ? opts.speciesName : speciesTitleContext;
+    if (itemRule && FC.ruleFitsSpecies(itemRule, speciesName)) {
       var im = bulkMultipliersFromRule(itemRule);
       statMul({ def: im.defM, spd: im.spdM });
     }
@@ -206,7 +208,8 @@
     itemRaw,
     abilityRaw,
     speciesTitleContext,
-    speciesTypesEn
+    speciesTypesEn,
+    opts
   ) {
     if (!enabled) return '';
     return formatBulkLinesFromComp(
@@ -216,7 +219,8 @@
         itemRaw,
         abilityRaw,
         speciesTitleContext,
-        speciesTypesEn
+        speciesTypesEn,
+        opts
       )
     );
   }
@@ -493,7 +497,8 @@
       item.raw,
       ability.raw,
       bulkContext,
-      options.speciesTypesEn
+      options.speciesTypesEn,
+      { speciesName: (name || '').trim() }
     );
 
     var includeMovePowers = !!options.includeMovePowers;
