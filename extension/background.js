@@ -20,137 +20,94 @@ importScripts('showdownPaste.js');
   var SMP = globalThis.simpleMovePower;
   var AFO = globalThis.attackerFormOverride;
 
-  var SK_MODIFIERS_CACHE = 'nuo_fmt_modifiersCache';
-  var SK_MOVETAGS_CACHE = 'nuo_fmt_moveTagsCache';
-  var SK_MOVEKO_CACHE = 'nuo_fmt_moveKoCache';
-  var SK_POKEMON_TYPE_CACHE = 'nuo_fmt_pokemonTypeCache';
+  /** 확장 패키지 JSON 파일 → 읽기 실패·모양 이상 때 쓸 빈 문서. */
+  var DOC_EMPTY = {
+    'modifiers.json': { version: 0, items: {}, abilities: {} },
+    'moveTags.json': { version: 0, moves: {} },
+    'moveKoMap.json': { version: 0, byKo: {} },
+    'moveKoFallback.json': { version: 0, byKo: {} },
+    'moveSlugToEn.json': { bySlug: {} },
+    // F20: 종 영문 slug → [type1, type2]. 미커버 종이면 fetchPokemonTypesEn fallback.
+    'pokemonTypeMap.json': { version: 0, bySlug: {} },
+    'pokemonSlugToDex.json': { bySlug: {} },
+    'itemKoMap.json': { byKo: {} },
+    'itemKoFallback.json': { byKo: {} },
+    'abilityKoMap.json': { byKo: {} },
+    'abilityKoFallback.json': { byKo: {} },
+    'natureKoMap.json': { koToSlug: {} },
+    'natureStatMul.json': { bySlug: {} },
+    'typeKoMap.json': { byKo: {} },
+  };
 
-  /**
-   * JSON 문자열 파싱 + 스키마 검증. 실패/비정상이면 `empty`를 반환.
-   * @param {string} text
-   * @param {(j:any)=>any|null} validate 유효하면 수정된 doc을 반환, 아니면 falsy
-   * @param {object} empty 실패 시 반환할 기본 문서
-   */
-  function safeJsonParse(text, validate, empty) {
-    try {
-      var j = JSON.parse(text);
-      var ok = validate(j);
-      return ok || empty;
-    } catch (e) {
-      return empty;
-    }
-  }
-
-  var EMPTY_MODIFIERS = { version: 0, items: {}, abilities: {} };
-  var EMPTY_MOVETAGS = { version: 0, moves: {} };
-  var EMPTY_MOVEKOMAP = { version: 0, byKo: {} };
-  var EMPTY_POKEMON_TYPE = { version: 0, bySlug: {} };
-
-  function parseModifiersJson(text) {
-    return safeJsonParse(
-      text,
-      function (j) {
-        if (!j || typeof j.items !== 'object' || j.items === null) return null;
-        if (!j.abilities || typeof j.abilities !== 'object') j.abilities = {};
-        return j;
-      },
-      EMPTY_MODIFIERS
-    );
-  }
-
-  function parseMoveTagsJson(text) {
-    return safeJsonParse(
-      text,
-      function (j) {
-        return j && typeof j.moves === 'object' && j.moves !== null ? j : null;
-      },
-      EMPTY_MOVETAGS
-    );
-  }
-
-  function parseMoveKoMapJson(text) {
-    return safeJsonParse(
-      text,
-      function (j) {
-        return j && typeof j.byKo === 'object' && j.byKo !== null ? j : null;
-      },
-      EMPTY_MOVEKOMAP
-    );
-  }
-
-  function parsePokemonTypeJson(text) {
-    return safeJsonParse(
-      text,
-      function (j) {
-        return j && typeof j.bySlug === 'object' && j.bySlug !== null ? j : null;
-      },
-      EMPTY_POKEMON_TYPE
-    );
-  }
-
-  function makeBundleLoader(storageKey, fileName, parse, emptyDoc) {
-    var promise = null;
-    return function ensureLoaded() {
-      if (promise) return promise;
-      promise = fetch(chrome.runtime.getURL(fileName))
-        .then(function (res) {
-          return res.text();
-        })
-        .then(function (text) {
-          var doc = parse(text);
-          try {
-            chrome.storage.local.set({
-              [storageKey]: { text: text, savedAt: Date.now() },
-            });
-          } catch (e) {}
-          return doc;
-        })
-        .catch(function () {
-          return new Promise(function (resolve) {
-            chrome.storage.local.get([storageKey], function (got) {
-              if (chrome.runtime.lastError) {
-                resolve(emptyDoc);
-                return;
-              }
-              var c = got[storageKey];
-              if (c && c.text) {
-                resolve(parse(c.text));
-                return;
-              }
-              resolve(emptyDoc);
-            });
-          });
-        });
-      return promise;
+  function hasObjectKey(key) {
+    return function (j) {
+      return j && typeof j[key] === 'object' && j[key] !== null ? j : null;
     };
   }
 
-  var ensureMoveKoMapLoaded = makeBundleLoader(
-    SK_MOVEKO_CACHE,
-    'moveKoMap.json',
-    parseMoveKoMapJson,
-    { version: 0, byKo: {} }
-  );
-  var ensureMoveTagsLoaded = makeBundleLoader(
-    SK_MOVETAGS_CACHE,
-    'moveTags.json',
-    parseMoveTagsJson,
-    { version: 0, moves: {} }
-  );
-  var ensureModifiersLoaded = makeBundleLoader(
-    SK_MODIFIERS_CACHE,
-    'modifiers.json',
-    parseModifiersJson,
-    { version: 0, items: {}, abilities: {} }
-  );
-  // F20: 종 영문 slug → [type1, type2] 번들 lookup. 빌드 타임에 PokéAPI 일괄 추출
-  // (scripts/generate-pokemon-type-map.js). 없거나 미커버 종이면 fetchPokemonTypesEn fallback.
-  var ensurePokemonTypeMapLoaded = makeBundleLoader(
-    SK_POKEMON_TYPE_CACHE,
-    'pokemonTypeMap.json',
-    parsePokemonTypeJson,
-    EMPTY_POKEMON_TYPE
-  );
+  /** 모양 검사 — 통과하면 (보정한) 문서, 아니면 falsy → 빈 문서. */
+  var DOC_VALIDATE = {
+    'modifiers.json': function (j) {
+      if (!hasObjectKey('items')(j)) return null;
+      if (!j.abilities || typeof j.abilities !== 'object') j.abilities = {};
+      return j;
+    },
+    'moveTags.json': hasObjectKey('moves'),
+    'moveKoMap.json': hasObjectKey('byKo'),
+    'pokemonTypeMap.json': hasObjectKey('bySlug'),
+  };
+
+  /**
+   * F1: 번들 JSON 을 SW 라이프타임 1회만 fetch + parse. 성공한 결과만 캐시 (fetch 실패면 다음 호출이 재시도).
+   *
+   * 주의: 결과 객체는 캐시와 공유 — 변형(mutate) 금지.
+   */
+  var jsonDocCache = Object.create(null);    // fileName → resolved doc
+  var jsonInflight = Object.create(null);    // fileName → in-flight Promise
+
+  function loadJsonUrl(fileName) {
+    if (Object.prototype.hasOwnProperty.call(jsonDocCache, fileName)) {
+      return Promise.resolve(jsonDocCache[fileName]);
+    }
+    if (jsonInflight[fileName]) return jsonInflight[fileName];
+    var p = fetch(chrome.runtime.getURL(fileName))
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (j) {
+        var validate = DOC_VALIDATE[fileName];
+        if (validate) j = validate(j) || DOC_EMPTY[fileName];
+        jsonDocCache[fileName] = j;
+        delete jsonInflight[fileName];
+        return j;
+      })
+      .catch(function () {
+        delete jsonInflight[fileName];
+        return DOC_EMPTY[fileName];
+      });
+    jsonInflight[fileName] = p;
+    return p;
+  }
+
+  /**
+   * 이름 → 파일명(문자열) 또는 Promise 묶음을 한 번에 기다려 같은 이름의 객체로.
+   * @param {Object<string, string|Promise>} spec
+   * @returns {Promise<Object<string, any>>}
+   */
+  function loadDocs(spec) {
+    var names = Object.keys(spec);
+    return Promise.all(
+      names.map(function (k) {
+        return typeof spec[k] === 'string' ? loadJsonUrl(spec[k]) : spec[k];
+      })
+    ).then(function (arr) {
+      var out = {};
+      names.forEach(function (k, i) {
+        out[k] = arr[i];
+      });
+      return out;
+    });
+  }
 
   /**
    * 한글 이름 해석기 (koNames.js) — 도구·특성·기술, 사이트 표기(*KoFallback) 우선. SW 라이프타임 1회 빌드.
@@ -159,25 +116,15 @@ importScripts('showdownPaste.js');
   var koNamesPromise = null;
   function loadKoNames() {
     if (koNamesPromise) return koNamesPromise;
-    koNamesPromise = Promise.all([
-      ensureModifiersLoaded(),
-      loadJsonUrl('itemKoMap.json', { byKo: {} }),
-      loadJsonUrl('itemKoFallback.json', { byKo: {} }),
-      loadJsonUrl('abilityKoMap.json', { byKo: {} }),
-      loadJsonUrl('abilityKoFallback.json', { byKo: {} }),
-      ensureMoveKoMapLoaded(),
-      loadJsonUrl('moveKoFallback.json', { version: 0, byKo: {} }),
-    ]).then(function (arr) {
-      return globalThis.nuoKoNames.forDocs({
-        modifiers: arr[0],
-        itemMap: arr[1],
-        itemSite: arr[2],
-        abilityMap: arr[3],
-        abilitySite: arr[4],
-        moveMap: arr[5],
-        moveSite: arr[6],
-      });
-    });
+    koNamesPromise = loadDocs({
+      modifiers: 'modifiers.json',
+      itemMap: 'itemKoMap.json',
+      itemSite: 'itemKoFallback.json',
+      abilityMap: 'abilityKoMap.json',
+      abilitySite: 'abilityKoFallback.json',
+      moveMap: 'moveKoMap.json',
+      moveSite: 'moveKoFallback.json',
+    }).then(globalThis.nuoKoNames.forDocs);
     return koNamesPromise;
   }
 
@@ -195,28 +142,16 @@ importScripts('showdownPaste.js');
    * }>}
    */
   function loadCalcPayloadDocs() {
-    return Promise.all([
-      loadJsonUrl('natureKoMap.json', { koToSlug: {} }),
-      loadJsonUrl('natureStatMul.json', { bySlug: {} }),
-      loadJsonUrl('typeKoMap.json', { byKo: {} }),
-      loadJsonUrl('moveKoFallback.json', { version: 0, byKo: {} }),
-      loadKoNames(),
-      ensureMoveKoMapLoaded(),
-      // 본 라운드: 슬러그 정규화 (hyphenless → hyphenated) — calcPayload 가 한 번만 reduce.
-      // 옛 코드는 hyphen 위치를 모르고 sequential 추측해 ~10 sequential 404 (~2~4초).
-      loadJsonUrl('moveSlugToEn.json', { bySlug: {} }),
-      ensureMoveTagsLoaded(),
-    ]).then(function (arr) {
-      return {
-        natureKoDoc: arr[0],
-        natureStatMulDoc: arr[1],
-        typeKoDoc: arr[2],
-        moveKoFallbackDoc: arr[3],
-        koNames: arr[4],
-        moveKoDoc: arr[5],
-        moveSlugToEnDoc: arr[6],
-        moveTagsDoc: arr[7],
-      };
+    return loadDocs({
+      natureKoDoc: 'natureKoMap.json',
+      natureStatMulDoc: 'natureStatMul.json',
+      typeKoDoc: 'typeKoMap.json',
+      moveKoFallbackDoc: 'moveKoFallback.json',
+      koNames: loadKoNames(),
+      moveKoDoc: 'moveKoMap.json',
+      // 슬러그 정규화 (hyphenless → hyphenated) — calcPayload 가 한 번만 reduce.
+      moveSlugToEnDoc: 'moveSlugToEn.json',
+      moveTagsDoc: 'moveTags.json',
     });
   }
 
@@ -386,7 +321,7 @@ importScripts('showdownPaste.js');
     var slug = SL.speciesSlug(slotData);
     if (!slug) return Promise.resolve(local);
 
-    return ensurePokemonTypeMapLoaded().then(function (bundle) {
+    return loadJsonUrl('pokemonTypeMap.json').then(function (bundle) {
       var bySlug = bundle && bundle.bySlug;
       if (bySlug && Array.isArray(bySlug[slug]) && bySlug[slug].length) {
         var merged = mergeTypeLists(local, bySlug[slug]);
@@ -407,30 +342,25 @@ importScripts('showdownPaste.js');
         speciesTypesEn: [],
       });
     }
-    return Promise.all([
-      loadKoNames(),
-      ensureMoveTagsLoaded(),
-      resolveSpeciesTypesForSlot(slotData),
-      loadJsonUrl('natureKoMap.json', { koToSlug: {} }),
-      loadJsonUrl('natureStatMul.json', { bySlug: {} }),
-    ]).then(function (arr) {
-      var names = arr[0];
-      var moveTags = arr[1];
-      var types = arr[2];
-      var natureKoDoc = arr[3];
-      var natureStatMulDoc = arr[4];
+    return loadDocs({
+      names: loadKoNames(),
+      moveTags: 'moveTags.json',
+      types: resolveSpeciesTypesForSlot(slotData),
+      natureKoDoc: 'natureKoMap.json',
+      natureStatMulDoc: 'natureStatMul.json',
+    }).then(function (d) {
       // 결정력 입력만 폼 보정한 클론으로 교체. 내구력/그 외 소비자는 원본 slotData 사용.
       var slotForPower = slotData;
       if (AFO && typeof AFO.applyAttackerFormOverride === 'function') {
         slotForPower = AFO.applyAttackerFormOverride(
           slotData,
-          natureKoDoc,
-          natureStatMulDoc
+          d.natureKoDoc,
+          d.natureStatMulDoc
         );
       }
       return {
-        movePowers: SMP.computeMovePowers(slotForPower, types, names, moveTags),
-        speciesTypesEn: types || [],
+        movePowers: SMP.computeMovePowers(slotForPower, d.types, d.names, d.moveTags),
+        speciesTypesEn: d.types || [],
       };
     });
   }
@@ -541,51 +471,12 @@ importScripts('showdownPaste.js');
     return m;
   }
 
-  /**
-   * F1: 같은 번들 JSON을 여러 경로(loadPasteBundleDocs, computeBlockPowersForSlot,
-   * GET_CALC_PAYLOADS 등)에서 거듭 fetch + JSON.parse 하던 낭비를 SW 라이프타임
-   * 메모이제이션으로 제거. 성공한 결과만 캐시 (실패면 다음 호출이 재시도).
-   *
-   * 주의: 결과 객체는 캐시와 공유 — 변형(mutate) 금지.
-   */
-  var jsonDocCache = Object.create(null);    // fileName → resolved doc
-  var jsonInflight = Object.create(null);    // fileName → in-flight Promise
-
-  function loadJsonUrl(fileName, empty) {
-    if (Object.prototype.hasOwnProperty.call(jsonDocCache, fileName)) {
-      return Promise.resolve(jsonDocCache[fileName]);
-    }
-    if (jsonInflight[fileName]) return jsonInflight[fileName];
-    var p = fetch(chrome.runtime.getURL(fileName))
-      .then(function (r) {
-        return r.json();
-      })
-      .then(function (j) {
-        jsonDocCache[fileName] = j;
-        delete jsonInflight[fileName];
-        return j;
-      })
-      .catch(function () {
-        delete jsonInflight[fileName];
-        return empty;
-      });
-    jsonInflight[fileName] = p;
-    return p;
-  }
-
   function loadPasteBundleDocs() {
-    return Promise.all([
-      loadKoNames(),
-      loadJsonUrl('moveSlugToEn.json', { bySlug: {} }),
-      loadJsonUrl('natureKoMap.json', { koToSlug: {} }),
-      loadJsonUrl('typeKoMap.json', { byKo: {} }),
-    ]).then(function (arr) {
-      return {
-        koNames: arr[0],
-        moveSlugToEnDoc: arr[1],
-        natureKoDoc: arr[2],
-        typeKoDoc: arr[3],
-      };
+    return loadDocs({
+      koNames: loadKoNames(),
+      moveSlugToEnDoc: 'moveSlugToEn.json',
+      natureKoDoc: 'natureKoMap.json',
+      typeKoDoc: 'typeKoMap.json',
     });
   }
 
@@ -960,7 +851,7 @@ importScripts('showdownPaste.js');
     }
 
     if (msg.type === 'GET_POKEMON_SLUG_TO_DEX') {
-      loadJsonUrl('pokemonSlugToDex.json', { bySlug: {} }).then(function (doc) {
+      loadJsonUrl('pokemonSlugToDex.json').then(function (doc) {
         sendResponse({ ok: true, doc: doc });
       });
       return true;
@@ -979,6 +870,13 @@ importScripts('showdownPaste.js');
 
   chrome.runtime.onInstalled.addListener(function (details) {
     if (details.reason !== 'update') return;
+    // 2.0.1: 옛 번들 storage 미러 정리 — fetch 성공마다 쓰기만 하던 사본 (ARCH_REVIEW 후보 3).
+    chrome.storage.local.remove(
+      ['nuo_fmt_modifiersCache', 'nuo_fmt_moveTagsCache', 'nuo_fmt_moveKoCache', 'nuo_fmt_pokemonTypeCache'],
+      function () {
+        return chrome.runtime.lastError;
+      }
+    );
     triggerUpdateNotice(
       String(details.previousVersion || '0.0.0'),
       chrome.runtime.getManifest().version
