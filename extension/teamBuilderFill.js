@@ -24,11 +24,10 @@
   var TBS = globalThis.nuoTeamBuilderShared || {};
   // R2/T1: 옛 "계산기 화면이면 hide" 의 음의 정의 → "팀빌더 화면이면 show" 양의 정의.
   var isTeamBuilderRoute = CS.isTeamBuilderRoute || function () { return true; };
-  var isSmartnuoHost = TBS.isSmartnuoHost;
   var injectTeamBridgeOnce = TBS.injectTeamBridgeOnce;
   var getSlotsFromBridge = TBS.getSlotsFromBridge;
 
-  if (typeof isSmartnuoHost !== 'function' || typeof getSlotsFromBridge !== 'function' ||
+  if (typeof getSlotsFromBridge !== 'function' ||
       typeof CS.keepInjected !== 'function') {
     // teamBuilderShared / calcFillShared 가 못 올라왔으면 안전하게 종료. manifest 순서 점검.
     return;
@@ -448,7 +447,6 @@
   }
 
   function init() {
-    if (!isSmartnuoHost()) return;
     registerInjectors();
     injectTeamBridgeOnce().then(function () {
       bridgeReady = true;

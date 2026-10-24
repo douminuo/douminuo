@@ -14,11 +14,10 @@
   var TBS = globalThis.nuoTeamBuilderShared || {};
   // R2/T1: 옛 "계산기 화면이면 hide" 의 음의 정의 → "팀빌더 화면이면 show" 양의 정의.
   var isTeamBuilderRoute = CS.isTeamBuilderRoute || function () { return true; };
-  var isSmartnuoHost = TBS.isSmartnuoHost;
   var injectTeamBridgeOnce = TBS.injectTeamBridgeOnce;
   var getSlotsFromBridge = TBS.getSlotsFromBridge;
 
-  if (typeof isSmartnuoHost !== 'function' || typeof getSlotsFromBridge !== 'function') {
+  if (typeof getSlotsFromBridge !== 'function') {
     // shared 가 못 올라온 경우 — 안전하게 종료. manifest 순서 점검.
     return;
   }
@@ -266,7 +265,6 @@
   }
 
   function scheduleTeamBuilderInlineAnnotate() {
-    if (!isSmartnuoHost()) return;
     if (!tbInlineAnyEnabled()) return;
     clearTimeout(tbInlineTimer);
     // 연속 변화 묶기용. 한 사이클 ≈10ms·사이트 카드 갱신 ≈6ms (2026-10-23 실측) — 옛 520ms 는 근거 없음.
@@ -284,7 +282,6 @@
   }
 
   function runTeamBuilderInlineAnnotate() {
-    if (!isSmartnuoHost()) return;
     if (!tbInlineAnyEnabled()) {
       clearTbInlineAnnotations();
       return;
@@ -406,7 +403,6 @@
   }
 
   function initTeamBuilderInlineAnnotate() {
-    if (!isSmartnuoHost()) return;
     if (tbInlineAnnotInited) return;
     tbInlineAnnotInited = true;
 

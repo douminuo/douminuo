@@ -419,11 +419,6 @@
   // 새 사이트는 /speed 가 별도 라우트라 "계산기 아니면 = 팀빌더" 등식이 깨졌고, 양의 정의가 안전.
   var isTeamBuilderRoute = CS.isTeamBuilderRoute || function () { return false; };
 
-  function isSmartnuoHost() {
-    var h = (location.hostname || '').toLowerCase();
-    return h === 'smartnuo.com' || h === 'www.smartnuo.com';
-  }
-
   /**
    * 스피드 관련 특성/도구 → 배율 매핑. 토글 ON 이어도 매핑 없으면 배율 1.
    * 이름 표기는 스마트누오 입력칸에 들어가는 한글 명칭 기준. 목록 = 사이트 스피드 특성·도구 (`/api/ability?for=speed` 등).
@@ -1226,7 +1221,6 @@
   }
 
   function init() {
-    if (!isSmartnuoHost()) return;
     loadRegulationSpeedTable(function () {});
     tick();
     stopPollTimer();

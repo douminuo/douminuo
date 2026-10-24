@@ -16,11 +16,6 @@
   var CS = g.nuoCsCommon || {};
   var SL = g.nuoSlotRead;
 
-  function isSmartnuoHost() {
-    var h = (location.hostname || '').toLowerCase();
-    return h === 'smartnuo.com' || h === 'www.smartnuo.com';
-  }
-
   function injectTeamBridge() {
     return CS.requestBridgeInject('INJECT_TEAM_BUILDER_BRIDGE', 'team_bridge_inject_failed');
   }
@@ -333,7 +328,6 @@
   }
 
   g.nuoTeamBuilderShared = {
-    isSmartnuoHost: isSmartnuoHost,
     injectTeamBridge: injectTeamBridge,
     injectTeamBridgeOnce: injectTeamBridgeOnce,
     getSlotsFromBridge: getSlotsFromBridge,

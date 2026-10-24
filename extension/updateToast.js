@@ -14,11 +14,6 @@
   var SK_LAST_SEEN = 'nuo_fmt_lastSeenVersion';
   var AUTO_DISMISS_MS = 8000;
 
-  function isSmartnuoHost() {
-    var h = (location.hostname || '').toLowerCase();
-    return h === 'smartnuo.com' || h === 'www.smartnuo.com';
-  }
-
   // TEMPLATES.md v7: context invalidated 방어
   function isExtValid() {
     try { return !!(chrome && chrome.runtime && chrome.runtime.id); }
@@ -149,7 +144,6 @@
   }
 
   function init() {
-    if (!isSmartnuoHost()) return;
     if (!isExtValid()) return;
 
     chrome.storage.local.get([SK_NOTICE, 'nuo_fmt_updateNoticeEnabled'], function (got) {
