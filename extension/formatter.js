@@ -9,7 +9,7 @@
 
   var STAT_ORDER = 'HABCDS';
 
-  /** 나무위키·커뮤 관행: (HP실×방어실)/k, (HP실×특방실)/k. 괄호: modifiers.json 도구·특성·패앙·고대활성 등 + 모래날림/눈퍼뜨리기(타입 조건). README「내구력 — 구현 범위」참고. */
+  /** 나무위키·커뮤 관행: (HP실×방어실)/k, (HP실×특방실)/k. 괄호: modifiers.json 도구·특성·패앙·고대활성 등 + 모래날림/눈퍼뜨리기(타입 조건). 적용 키 = modifiers.json 의 bulk* 키. */
   var BULK_REAL_DIVISOR = 0.411;
 
   /** names = koNames.forDocs(...) 해석기 */

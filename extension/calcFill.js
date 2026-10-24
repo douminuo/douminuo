@@ -202,7 +202,10 @@
     });
   }
 
-  /** 좌(idx 0) / 우(idx 1) 패널 프로필 헤더(`시즌…` 줄을 품은 border-bottom 박스) 다음 형제 자리. */
+  /**
+   * 좌(idx 0) / 우(idx 1) 패널 프로필 헤더(`시즌…` 줄을 품은 border-bottom 박스) 다음 형제 자리.
+   * `시즌 00 싱글 00위 더블 00위` = 사이트 하드코딩 자리표시 (2026-10). 숨김 랭크 기능이 공개되면 실데이터로 바뀔 수 있어 재점검.
+   */
   function findProfileHeaderSlot(idx) {
     var leaves = CS.findTextLeaves(/^시즌/);
     var el = leaves[idx];

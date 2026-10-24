@@ -202,6 +202,7 @@
    * @param {string} key chrome.storage.local 키
    * @param {string} failCode 읽기·쓰기 실패 reject 코드
    */
+  // shortcut: readAll → writeAll 사이 잠금 없음 — 몇 ms 안에 두 번 저장하면 하나 유실 가능. 사용자 결정으로 둠 (2026-09-26).
   function makeStore(key, failCode) {
     function readAll() {
       return new Promise(function (resolve, reject) {

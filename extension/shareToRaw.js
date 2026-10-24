@@ -26,6 +26,7 @@
   }
 
   /**
+   * 호출자 0 (공유 URL 입력은 2026-09 리디자인 때 없어짐) — 사용자 결정으로 유지. 지우기 전에 물을 것.
    * @returns {{ type: 'party', slots: object[] } | { type: 'single', slot: object }}
    */
   function classifyShareGetResponse(j) {
