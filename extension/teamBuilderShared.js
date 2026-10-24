@@ -22,7 +22,7 @@
 
   /**
    * F12: 매 호출마다 SW 메시지 + chrome.scripting.executeScript 왕복을 피한다.
-   * 페이지 측은 __NUO_TEAM_BUILDER_BRIDGE_V4__ 가드로 어차피 noop이지만 메시지 비용이 남음.
+   * 페이지 측은 __NUO_TEAM_BUILDER_BRIDGE_V<n>__ 가드로 어차피 noop이지만 메시지 비용이 남음.
    * 첫 ok 이후엔 같은 promise 재사용. 실패 시 캐시 초기화 → 다음 호출이 재시도.
    */
   var teamBridgeReadyP = null;
