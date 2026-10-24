@@ -1,6 +1,6 @@
 {
-  "version": 2,
-  "note": "PokeAPI ability names에 language ko가 없을 때만. 키는 스마트누오 표기, 값은 PokeAPI ability slug. PokeAPI에 ko 생기면 삭제.",
+  "version": 3,
+  "note": "스마트누오 표기 → slug. 확장이 abilityKoMap 위에 덮어씀(사이트 표기 우선). 채우기 = node scripts/audit-ko-names-vs-site.js --write.",
   "byKo": {
     "가시지않는향기": "lingering-aroma",
     "편승": "opportunist",
@@ -22,6 +22,7 @@
     "바람타기": "wind-rider",
     "황금몸": "good-as-gold",
     "균사의힘": "mycelium-might",
-    "총대장": "supreme-overlord"
+    "총대장": "supreme-overlord",
+    "파수견": "guard-dog"
   }
 }
