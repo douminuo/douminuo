@@ -1,4 +1,4 @@
-# Douminuo (Chrome extension v2.0.0)
+# Douminuo (Chrome extension v2.0.1)
 
 [한국어](README.md) | **English**
 
@@ -96,10 +96,6 @@ Settings lets you choose what goes in:
 
 Open Settings from the gear button at the top right of the Box, or click the Douminuo icon in Chrome's toolbar.
 You can turn each feature on or off there.
-
----
-
-## FAQ
 
 ---
 
