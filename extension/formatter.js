@@ -129,6 +129,7 @@
     var specBase = Math.floor((h * d) / BULK_REAL_DIVISOR);
 
     var excludeConditional = !!(opts && opts.excludeConditionalAbilities === true);
+    var hEff = h;
     var bEff = b;
     var dEff = d;
     var sDef = 1;
@@ -148,6 +149,8 @@
       } else if (!(excludeConditional && arule.bulkConditional === true)) {
         // F51: 풀체력 조건부 (bulkConditional) 는 인라인 컨텍스트(opts.excludeConditionalAbilities)에서 skip.
         var am = bulkMultipliersFromRule(arule);
+        // 탈(bulkHpLossFrac): 탈이 벗겨지면 최대 HP 1/8 잃음 → 남은 HP 로 (복사 버프 쪽만 — 사용자 결정 2026-10-24).
+        if (arule.bulkHpLossFrac) hEff = h - Math.floor(h * Number(arule.bulkHpLossFrac));
         if (arule.bulkFinal) {
           sDef = am.defM;
           sSpd = am.spdM;
@@ -166,8 +169,8 @@
 
     if (abFound) statMul(weatherBulkMulSandSnowOnly(abFound.slug, speciesTypesEn));
 
-    var physBuffed = Math.floor((h * bEff * sDef) / BULK_REAL_DIVISOR);
-    var specBuffed = Math.floor((h * dEff * sSpd) / BULK_REAL_DIVISOR);
+    var physBuffed = Math.floor((hEff * bEff * sDef) / BULK_REAL_DIVISOR);
+    var specBuffed = Math.floor((hEff * dEff * sSpd) / BULK_REAL_DIVISOR);
 
     return { physBase: physBase, specBase: specBase, physBuffed: physBuffed, specBuffed: specBuffed };
   }

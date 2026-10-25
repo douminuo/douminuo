@@ -370,4 +370,14 @@ const bpSlot = (extra) =>
 assert(bpSlot({ equipment: '구애머리띠' }).buffed === Math.floor(80 * 150 * 1.5), '바디프레스 + 구애머리띠 = 효과 없음: ' + JSON.stringify(bpSlot({ equipment: '구애머리띠' })));
 assert(bpSlot({ ability: '천하장사' }).buffed === Math.floor(80 * 150 * 1.5), '바디프레스 + 천하장사 = 효과 없음');
 
+// 주얼 = 조건부 (한 번 쓰면 사라짐): base 미반영, buffed 만 ×1.3.
+const gem = cmp({ pokemon: { moves: [firePunch], stats: { attack: { real: 100 } } }, equipment: '불꽃주얼' }, ['fire'])[0];
+assert(gem.base === Math.floor(75 * 100 * 1.5) && gem.buffed === Math.floor(75 * 100 * (1.5 * 1.3)), '불꽃주얼 조건부: ' + JSON.stringify(gem));
+// 플레이트는 그대로 항시.
+const plate = cmp({ pokemon: { moves: [firePunch], stats: { attack: { real: 100 } } }, equipment: '불구슬플레이트' }, ['fire'])[0];
+assert(plate.base === plate.buffed && plate.base === Math.floor(75 * 100 * (1.5 * 1.2)), '플레이트 항시: ' + JSON.stringify(plate));
+// 슬로스타트 = 조건부: base 그대로, buffed = 공격 반감.
+const ss = cmp({ pokemon: { moves: [firePunch], stats: { attack: { real: 101 } } }, ability: '슬로스타트' }, ['normal'])[0];
+assert(ss.base === 75 * 101 && ss.buffed === 75 * 50, '슬로스타트 조건부: ' + JSON.stringify(ss));
+
 console.log('smoke-move-power: ok');

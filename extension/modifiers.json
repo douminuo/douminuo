@@ -1,5 +1,5 @@
 {
-  "version": 16,
+  "version": 17,
   "items": {
     "choice-band": {
       "atkMulPhysical": 1.5,
@@ -240,91 +240,109 @@
     "steel-gem": {
       "boostType": "steel",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "강철주얼"
     },
     "fighting-gem": {
       "boostType": "fighting",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "격투주얼"
     },
     "ghost-gem": {
       "boostType": "ghost",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "고스트주얼"
     },
     "normal-gem": {
       "boostType": "normal",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "노말주얼"
     },
     "poison-gem": {
       "boostType": "poison",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "독주얼"
     },
     "dragon-gem": {
       "boostType": "dragon",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "드래곤주얼"
     },
     "ground-gem": {
       "boostType": "ground",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "땅주얼"
     },
     "water-gem": {
       "boostType": "water",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "물주얼"
     },
     "rock-gem": {
       "boostType": "rock",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "바위주얼"
     },
     "bug-gem": {
       "boostType": "bug",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "벌레주얼"
     },
     "fire-gem": {
       "boostType": "fire",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "불꽃주얼"
     },
     "flying-gem": {
       "boostType": "flying",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "비행주얼"
     },
     "dark-gem": {
       "boostType": "dark",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "악주얼"
     },
     "ice-gem": {
       "boostType": "ice",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "얼음주얼"
     },
     "psychic-gem": {
       "boostType": "psychic",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "에스퍼주얼"
     },
     "electric-gem": {
       "boostType": "electric",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "전기주얼"
     },
     "fairy-gem": {
       "boostType": "fairy",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "페어리주얼"
     },
     "grass-gem": {
       "boostType": "grass",
       "typedPowerMul": 1.3,
+      "boostConditional": true,
       "nameKo": "풀주얼"
     },
     "light-ball": {
@@ -814,8 +832,13 @@
       "nameKo": "바위나르기"
     },
     "slow-start": {
-      "atkMulPhysical": 0.5,
+      "condAtkMulPhysical": 0.5,
       "nameKo": "슬로스타트"
+    },
+    "disguise": {
+      "bulkHpLossFrac": 0.125,
+      "bulkConditional": true,
+      "nameKo": "탈"
     }
   }
 }

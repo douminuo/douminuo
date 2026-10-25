@@ -322,7 +322,8 @@
       if (buffed && ar.pinchBoostType != null && moveTypeEn === String(ar.pinchBoostType).toLowerCase().trim()) {
         d *= num(ar.pinchPowerMul, 1.5);
       }
-      if (itemTypes.indexOf(moveTypeEn) !== -1) d *= num(ir.typedPowerMul, 1);
+      // 주얼(boostConditional)은 한 번 쓰면 사라짐 → buffed 만 (사용자 결정 2026-10-24).
+      if (itemTypes.indexOf(moveTypeEn) !== -1 && (buffed || !ir.boostConditional)) d *= num(ir.typedPowerMul, 1);
       // 메가솔라(selfWeather)는 조건부 아님 — base 에도. 날씨 깔기(setsWeather)는 buffed 만.
       var wk = selfWeatherKey || (buffed ? weatherKey : '');
       var wm = WEATHER_TYPE_POWER_MUL[wk] && WEATHER_TYPE_POWER_MUL[wk][moveTypeEn];

@@ -97,5 +97,10 @@ assert(mpOther.physBuffed === mpOther.physBase, '금속파우더 다른 종 = �
 // 샘플 제목에 종명이 들어가도 판정은 opts.speciesName (실제 종) 기준.
 const mpTitle = ctx.computeBulkPhysSpecBuffed(r97, koNames, '금속파우더', '', '메타몽 카운터\n피카츄', [], { speciesName: '피카츄' });
 assert(mpTitle.physBuffed === mpTitle.physBase, '금속파우더 제목에 메타몽 = 효과 없음');
+// 탈: 벗겨진 뒤 HP 1/8 잃음 — 복사(버프)만, 인라인 제외.
+const dg = ctx.computeBulkPhysSpecBuffed({ H: 131, B: 100, D: 100 }, koNames, '', '탈', '', []);
+assert(dg.physBuffed === Math.floor(((131 - 16) * 100) / 0.411) && dg.specBuffed === dg.physBuffed, '탈 HP 7/8: ' + JSON.stringify(dg));
+const dgInline = ctx.computeBulkPhysSpecBuffed({ H: 131, B: 100, D: 100 }, koNames, '', '탈', '', [], { excludeConditionalAbilities: true });
+assert(dgInline.physBuffed === dgInline.physBase, '탈 인라인 제외: ' + JSON.stringify(dgInline));
 
 console.log('smoke-formatter: ok');
