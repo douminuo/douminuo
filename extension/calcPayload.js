@@ -163,6 +163,7 @@
             var k;
             for (k in c.entries) {
               if (!Object.prototype.hasOwnProperty.call(c.entries, k)) continue;
+              if (c.entries[k] == null) continue; // 옛 버전이 저장한 null — 이제 영속 안 함 (다음 저장 때 빠짐)
               if (!Object.prototype.hasOwnProperty.call(moveMetaCache, k)) {
                 moveMetaCache[k] = c.entries[k];
               }
@@ -186,9 +187,9 @@
         var entries = Object.create(null);
         var k;
         for (k in moveMetaCache) {
-          if (Object.prototype.hasOwnProperty.call(moveMetaCache, k)) {
-            // null(404) 도 캐시 — 동일 lookup 반복 방지. 새 PokéAPI 기술이 추가되면
-            // SW 재로드 또는 사용자 측 storage 비우기로 회복.
+          // 찾은 기술만 영속 (실제 기술 수만큼으로 상한). null(404) 은 메모리에만 — SW 라이프타임 1회.
+          // 페이지가 준 기술 이름마다 null 이 쌓여 storage 공용 할당량을 끝없이 먹던 것 막음 (2026-10 보안 감사).
+          if (Object.prototype.hasOwnProperty.call(moveMetaCache, k) && moveMetaCache[k] != null) {
             entries[k] = moveMetaCache[k];
           }
         }
@@ -283,24 +284,21 @@
       var url = 'https://pokeapi.co/api/v2/move/' + encodeURIComponent(k) + '/';
       return fetch(url, { headers: { Accept: 'application/json' } })
         .then(function (res) {
-          if (!res.ok) return null;
-          return res.json();
-        })
-        .then(function (j) {
-          if (!j) {
-            moveMetaCache[k] = null;
-            schedulePersistMoveMetaCache();
+          if (res.status === 404) {
+            moveMetaCache[k] = null; // 없는 기술 = 메모리 캐시 (영속 안 함)
             return null;
           }
-          var meta = moveMetaFromJson(j);
-          moveMetaCache[k] = meta;
-          schedulePersistMoveMetaCache();
-          return meta;
+          if (!res.ok) return null; // 429·5xx 등 일시 실패 = 캐시 안 함 — 다음 클릭에 다시 시도
+          return res.json().then(function (j) {
+            var meta = moveMetaFromJson(j);
+            if (!meta) return null;
+            moveMetaCache[k] = meta;
+            schedulePersistMoveMetaCache();
+            return meta;
+          });
         })
         .catch(function () {
-          moveMetaCache[k] = null;
-          schedulePersistMoveMetaCache();
-          return null;
+          return null; // 네트워크·JSON 오류 = 캐시 안 함 (오프라인 한 번에 기술이 영영 빠지던 것)
         });
     });
   }
@@ -318,6 +316,7 @@
    * @param {string} raw — Showdown식 id (보통 hyphenless, 영문 lowercase)
    * @param {Record<string,string>=} slugCanonicalMap — getSlugCanonicalMap 결과
    */
+  var MAX_GUESS_ID_LEN = 32;
   function resolveMoveMetaFromShowdownStyleId(raw, slugCanonicalMap) {
     var id = String(raw || '')
       .trim()
@@ -330,6 +329,10 @@
     if (canonical) {
       return fetchMoveMetaBySlug(canonical);
     }
+
+    // 실제 기술 id 는 하이픈 빼고 최장 28자 (neverendingnightmarephysical, moveSlugToEn 2026-10-28) — 그보다 긴 건 페이지가 지어낸 이름.
+    // 추측 fetch 가 길이만큼 늘어나므로 상한 (2026-10 보안 감사).
+    if (id.length > MAX_GUESS_ID_LEN) return Promise.resolve(null);
 
     // 폴백 — 신규 폼/번들 미커버 시. 옛 sequential 추측 그대로.
     return fetchMoveMetaBySlug(id).then(function (meta) {

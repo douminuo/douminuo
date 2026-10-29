@@ -8,8 +8,8 @@
  * 본 파일이 NUO_CALC_RESULT 로 응답한다. 프로토콜 유지.
  */
 (function () {
-  if (window.__NUO_CALC_BRIDGE_V40__) return;
-  window.__NUO_CALC_BRIDGE_V40__ = true;
+  if (window.__NUO_CALC_BRIDGE_V41__) return;
+  window.__NUO_CALC_BRIDGE_V41__ = true;
 
   var KEY_POKE_LIST = '$spokemon_list';
   var KEY_ATT = '$scalculator.attacker';
@@ -564,6 +564,8 @@
   }
 
   window.addEventListener('message', function (ev) {
+    // 같은 window(우리 콘텐츠 스크립트)에서 온 것만 — 사이트 안 다른 출처 iframe 이 계산기 칸을 쓰지 못하게 (teamBuilderBridge 와 같은 가드).
+    if (ev.source !== window) return;
     var d = ev.data;
     if (!d || d.source !== 'nuo-calc-ext' || d.type !== 'NUO_APPLY_CALC_V30') return;
     var rid = d.requestId != null ? d.requestId : '';

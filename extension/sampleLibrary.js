@@ -281,12 +281,25 @@
     }).join('<i></i>') + '</span>';
   }
 
+  /**
+   * 그리다 던지는 항목 = 이름 + 삭제 버튼만. 저장된 슬롯에 페이지가 넣은 이상한 값(toString 이 함수 아닌 객체 등)이
+   * String()/Number() 에서 던지면 목록 전체와 모든 삭제 버튼이 사라졌음 (2026-10 보안 감사). id·name 은 우리가 쓴 문자열.
+   */
+  function renderOne(render, item) {
+    try {
+      return render(item);
+    } catch (e) {
+      return '<div class="head"><span class="nm">' + esc(item.name) + '</span><span class="acts">' +
+        '<button type="button" class="del" data-id="' + esc(item.id) + '" aria-label="삭제">' + TRASH_SVG + '</button></span></div>';
+    }
+  }
+
   /** 머리 줄은 빈 상태에도 그림 (탭 전환). 개수 뱃지 = 파티 탭 "SP 66/66" 뱃지 실측 + 회색. */
   function renderList(items, k, head) {
     var top = '<div class="count">' + head + '<span class="badge">' + BOX_SVG + items.length + '/' + k.limit + '</span></div>' +
       '<p class="msg" role="status"></p>';
     if (!items.length) return top + '<p class="empty">' + k.empty + '</p>';
-    return top + '<div class="shell"><div class="list">' + items.map(k.render).join('') + '</div>' +
+    return top + '<div class="shell"><div class="list">' + items.map(function (it) { return renderOne(k.render, it); }).join('') + '</div>' +
       '<div class="sb"><div class="thumb"></div></div><div class="tip" role="status" hidden></div></div>';
   }
 
@@ -295,7 +308,7 @@
    * 휴지통 = 확인 후 삭제, 복사 = 파티 탭 복사 아이콘과 같은 변환 (teamBuilderFill.js nuoTeamCopy).
    * box 가 속한 Shadow root 에 nuoSampleCardCss 가 있어야 함.
    * @param {Element} box
-   * @param {{ kinds: string[], onPick: function(object, string) }} opts
+   * @param {{ kinds: string[], selfClick: function(Element), onPick: function(object, string) }} opts selfClick = openShell 의 것 (카드 Enter)
    * @returns {function} teardown
    */
   function mountList(box, opts) {
@@ -442,7 +455,7 @@
     box.addEventListener('keydown', function (e) {
       if ((e.key === 'Enter' || e.key === ' ') && e.target.classList && e.target.classList.contains('card')) {
         e.preventDefault();
-        e.target.click();
+        opts.selfClick(e.target);
       }
     });
     // 도구 아이콘 등 404 → 깨진 이미지 대신 빈 자리 (사이트 카드도 이미지 없으면 비어 보임)
@@ -469,12 +482,13 @@
     host.setAttribute('data-nuo-inject', 'sample-dialog');
     document.body.appendChild(host);
     var root = host.attachShadow({ mode: 'open' });
+    var selfClick = CS.trustedOnly(root); // 페이지 JS 의 합성 클릭으로 삭제·덮어쓰기 확인을 못 넘기게
     root.innerHTML = '<style>' + DIALOG_CSS + '</style>' +
       '<div class="backdrop" role="dialog" aria-modal="true"><div class="box ' + boxClass + '" tabindex="-1">' + html + '</div></div>';
     var bd = root.querySelector('.backdrop');
     // 포커스를 창 안으로 — 페이지 버튼(`박스`·아이콘)에 남으면 Enter/Space 가 같은 창을 또 엶. 입력칸 있는 창은 호출자가 다시 focus.
     root.querySelector('.box').focus({ preventScroll: true });
-    var sh = { root: root, closed: false, onDismiss: onDismiss || null, teardown: null };
+    var sh = { root: root, selfClick: selfClick, closed: false, onDismiss: onDismiss || null, teardown: null };
     sh.close = function () {
       if (sh.closed) return;
       sh.closed = true;
@@ -564,6 +578,7 @@
     });
     sh.teardown = mountList(sh.root.querySelector('.lib'), {
       kinds: opts.kinds,
+      selfClick: sh.selfClick,
       onPick: function (item, kind) { opts.onPick(item, kind, sh); }
     });
     return sh;

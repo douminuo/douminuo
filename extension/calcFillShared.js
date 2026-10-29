@@ -270,6 +270,27 @@
     try { return !!(chrome && chrome.runtime && chrome.runtime.id); } catch (e) { return false; }
   }
 
+  /**
+   * 우리 Shadow UI 를 페이지 스크립트가 대신 누르지 못하게 — 합성 click/keydown (isTrusted=false) 을 root 캡처 단계에서 버림.
+   * open shadow root 라 페이지 JS 가 버튼을 찾아 .click() 으로 박스 열기·삭제 확인·저장을 끝까지 몰 수 있었음 (2026-10 보안 감사).
+   * @param {ShadowRoot} root
+   * @returns {function(Element)} selfClick — 우리 코드가 일부러 내는 click (예: 카드 Enter) 은 이걸로만 통과
+   */
+  function trustedOnly(root) {
+    var self = false;
+    function gate(e) {
+      if (e.isTrusted || self) return;
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+    root.addEventListener('click', gate, true);
+    root.addEventListener('keydown', gate, true);
+    return function selfClick(el) {
+      self = true;
+      try { el.click(); } finally { self = false; }
+    };
+  }
+
   function unmountInjected(s) {
     if (typeof s.teardown === 'function') { try { s.teardown(); } catch (eT) {} }
     s.teardown = null;
@@ -294,7 +315,9 @@
     if (s.hostStyle) host.style.cssText = s.hostStyle;
     a.parent.insertBefore(host, a.before || null);
     s.host = host;
-    s.teardown = s.build(host.attachShadow({ mode: 'open' }), host) || null;
+    var root = host.attachShadow({ mode: 'open' });
+    trustedOnly(root);
+    s.teardown = s.build(root, host) || null;
   }
 
   function injectTick() {
@@ -344,6 +367,7 @@
     requestBridgeInject: requestBridgeInject,
     onLocalPrefChange: onLocalPrefChange,
     keepInjected: keepInjected,
+    trustedOnly: trustedOnly,
     findTextLeaves: findTextLeaves,
     isPcLayout: isPcLayout,
   };
