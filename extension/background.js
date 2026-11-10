@@ -178,6 +178,12 @@ importScripts('showdownPaste.js');
    * 응답 { id } → #ps= (단일 슬롯과 동일). 단일 슬롯: { data: { slot, data } }.
    * 사이트 현행 본문과 동일 (2026-10 번들 BFJqrx6L — 옛 2026-04 캡처는 { params: { data } } 래핑).
    */
+  /**
+   * 공유 등록 메모: origin + 요청 본문 → 응답 id. 같은 내용 재복사 = POST 없이 같은 링크
+   * (CLAUDE §4 "동일 입력 동일 호출 = SW 라이프타임 1회"). 성공한 것만 저장 — 실패는 다음 복사에서 재시도.
+   */
+  var shareIdMemo = Object.create(null);
+
   function postSharePartyAll(origin, pathname, slotsSix) {
     if (!Array.isArray(slotsSix) || slotsSix.length !== 6) {
       return Promise.reject(new Error('bad_party_slots'));
@@ -201,6 +207,14 @@ importScripts('showdownPaste.js');
     if (!anyFilled) {
       return Promise.reject(new Error('empty_party'));
     }
+    var body = JSON.stringify({
+      data: {
+        all: true,
+        data: row,
+      },
+    });
+    var mk = origin + '\n' + body;
+    if (shareIdMemo[mk]) return Promise.resolve(buildDisplayPartyUrl(origin, pathname, shareIdMemo[mk]));
     return fetch(origin + '/api/party/share', {
       method: 'POST',
       headers: {
@@ -208,12 +222,7 @@ importScripts('showdownPaste.js');
         Accept: 'application/json',
       },
       credentials: 'include',
-      body: JSON.stringify({
-        data: {
-          all: true,
-          data: row,
-        },
-      }),
+      body: body,
     }).then(function (res) {
       return res.text().then(function (t) {
         var j = null;
@@ -232,6 +241,7 @@ importScripts('showdownPaste.js');
         if (!j) throw new Error('empty_response');
         var sid = j.id != null ? j.id : j.data && j.data.id;
         if (!sid) throw new Error('empty_response');
+        shareIdMemo[mk] = sid;
         return buildDisplayPartyUrl(origin, pathname, sid);
       });
     });
@@ -241,6 +251,11 @@ importScripts('showdownPaste.js');
     // 빈/무효 슬롯은 어떤 누오 호출도 가지 않는다 (어머니 사이트 보호 원칙 §A.2 #3).
     // 단순 null 또는 {}만이 아니라 pokemon.name 없는 메타-only 칸도 SL.isEmpty 가 잡는다.
     if (SL.isEmpty(slotData)) return Promise.resolve('');
+    var body = JSON.stringify({
+      data: { slot: slotIndex1Based, data: slotData },
+    });
+    var mk = origin + '\n' + body;
+    if (shareIdMemo[mk]) return Promise.resolve(origin + (pathname || '/') + '#ps=' + shareIdMemo[mk]);
     return fetch(origin + '/api/party/share', {
       method: 'POST',
       headers: {
@@ -248,9 +263,7 @@ importScripts('showdownPaste.js');
         Accept: 'application/json',
       },
       credentials: 'include',
-      body: JSON.stringify({
-        data: { slot: slotIndex1Based, data: slotData },
-      }),
+      body: body,
     })
       .then(function (res) {
         if (!res.ok) return '';
@@ -260,6 +273,7 @@ importScripts('showdownPaste.js');
         if (!j) return '';
         var sid = j.id != null ? j.id : j.data && j.data.id;
         if (!sid) return '';
+        shareIdMemo[mk] = sid;
         return origin + (pathname || '/') + '#ps=' + sid;
       })
       .catch(function () {
