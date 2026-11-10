@@ -701,7 +701,7 @@ importScripts('showdownPaste.js');
     /**
      * 계산기 자동 입력 — 팀빌더 슬롯 직접 입력 경로. share GET 호출 없음.
      * 입력: { slot, side: 'attacker'|'defender' }
-     * 출력: { ok: true, payloads: { attacker?, defender? } } — 한쪽만 채워짐.
+     * 출력: { ok: true, payload } — 요청한 한쪽 (칸 선택은 bridge). 빈 슬롯·종 없음 = { ok: false, error }.
      */
     if (msg.type === 'GET_CALC_PAYLOADS_FROM_SLOT') {
       var CPs = globalThis.nuoCalcPayload;
@@ -719,8 +719,8 @@ importScripts('showdownPaste.js');
         .then(function (docs) {
           return CPs.buildSidePayloadFromSlot(slotIn, sideIn, docs, msg.page);
         })
-        .then(function (payloads) {
-          sendResponse({ ok: true, payloads: payloads });
+        .then(function (payload) {
+          sendResponse({ ok: true, payload: payload });
         })
         .catch(function (err) {
           sendResponse({

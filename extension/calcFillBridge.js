@@ -4,12 +4,20 @@
  * Phase 2.A (2026-05-09): 스마트누오 Nuxt 3 — Vue 인스턴스 대신 `window.__NUXT__.state` 의
  * useState payload 에 attacker/defender 를 직접 쓴다. (RENEWAL_FIX_PLAN §15.2~15.3)
  *
- * 격리: isolated world 의 calcFill.js 가 postMessage 로 NUO_APPLY_CALC_V30 보내면
- * 본 파일이 NUO_CALC_RESULT 로 응답한다. 프로토콜 유지.
+ * 격리: isolated world 의 calcFill.js 가 postMessage 로 NUO_APPLY_CALC_V31 { side, payload, page } 보내면
+ * 본 파일이 NUO_CALC_RESULT 로 응답한다. 한 번에 한쪽만.
+ *
+ * 칸 선택 규칙 (CALC_SIDE_PLAN, 2026-11-10) — 어느 칸(공격/특공·방어/특방)에 넣고 그 칸의 성격 배율을 쓸지는
+ * 이 파일의 cellIndex 만 정함. SW 페이로드는 6칸 사실(sp·ivs·nature)만 보냄. 이유: 수비만 채울 때 필요한
+ * "페이지의 현재 공격 기술"은 MAIN world 에서만 보이고, SW 가 미리 고른 값과 여기 선택이 어긋난 버그가
+ * 두 번 있었음 (bc2352f 수비 성격 배율, 8061f1a 사이코쇼크).
+ * 포톤가이저: 사이트 계산기는 특례 없이 항상 특공 기준 (실측 2026-11-10: 한카리아스 실수치 132 = 사이코키네시스와 같음)
+ * → 페이로드 분류(special) 그대로 특공 칸. 결정력 표시(높은 쪽)는 simpleMovePower 의 별도 결정.
+ * 메시지 타입 V31: 확장 새로고침 후 페이지에 남은 옛 bridge(V30 수신)가 새 모양을 먼저 해석하지 않게.
  */
 (function () {
-  if (window.__NUO_CALC_BRIDGE_V43__) return;
-  window.__NUO_CALC_BRIDGE_V43__ = true;
+  if (window.__NUO_CALC_BRIDGE_V44__) return;
+  window.__NUO_CALC_BRIDGE_V44__ = true;
 
   var KEY_POKE_LIST = '$spokemon_list';
   var KEY_ATT = '$scalculator.attacker';
@@ -207,21 +215,12 @@
     att.field = { en: pair.en, kr: pair.kr };
   }
 
-  function applyWeatherAndTerrain(att, pa, pd) {
-    if (!att) return;
+  /** att.weather / att.field 에 특성의 날씨·필드 대입. onlyIfEmpty = 수비측 채울 때 (이미 정한 날씨를 덮지 않음). */
+  function applyWeatherAndTerrain(att, pl, onlyIfEmpty) {
+    if (!att || !pl) return;
     try {
-      if (pa && !pa.error) {
-        if (pa.abilityWeatherKey) wxApplyWeather(att, pa.abilityWeatherKey);
-        if (pa.abilityTerrainKey) wxApplyField(att, pa.abilityTerrainKey);
-      }
-      if (pd && !pd.error) {
-        if (pd.abilityWeatherKey && wxSlotLooksEmpty(att.weather)) {
-          wxApplyWeather(att, pd.abilityWeatherKey);
-        }
-        if (pd.abilityTerrainKey && wxSlotLooksEmpty(att.field)) {
-          wxApplyField(att, pd.abilityTerrainKey);
-        }
-      }
+      if (pl.abilityWeatherKey && (!onlyIfEmpty || wxSlotLooksEmpty(att.weather))) wxApplyWeather(att, pl.abilityWeatherKey);
+      if (pl.abilityTerrainKey && (!onlyIfEmpty || wxSlotLooksEmpty(att.field))) wxApplyField(att, pl.abilityTerrainKey);
     } catch (eWx) {}
   }
 
@@ -369,75 +368,49 @@
     return null;
   }
 
-  function applyAttackerFromPayload(state, pa, physAtk, warnings, page) {
-    if (!page) page = 'calc';
-    var att = state[page === 'speed' ? KEY_SPEED_ATT : KEY_ATT];
-    var species = speciesKoForAttacker(pa.speciesKo);
-    var entry = findPokemonEntry(state, species);
+  /**
+   * 채울 칸 인덱스 (STAT_KEYS 순: 1 공격 · 2 방어 · 3 특공 · 4 특방 · 5 스피드) — 칸 선택은 여기 한 곳 (CALC_SIDE_PLAN).
+   * 공격측 = 페이로드 기술 분류, 수비측 = 페이지의 현재 공격 기술 (사이코쇼크류 = 방어), 기술 없으면 물리.
+   */
+  function cellIndex(state, side, pl, page) {
+    if (page === 'speed') return 5;
+    if (side === 'attacker') return pl.attackerMove && pl.attackerMove.damageClass === 'special' ? 3 : 1;
+    return inferIncomingPhysicalFromAttacker(state[KEY_ATT]) === false ? 4 : 2;
+  }
+
+  function applySideFromPayload(state, side, pl, page) {
+    var isAtk = side === 'attacker';
+    var target = state[page === 'speed' ? (isAtk ? KEY_SPEED_ATT : KEY_SPEED_DEF) : (isAtk ? KEY_ATT : KEY_DEF)];
+    var entry = findPokemonEntry(state, isAtk ? speciesKoForAttacker(pl.speciesKo) : pl.speciesKo);
     if (!entry) {
-      return { ok: false, error: page === 'speed' ? 'species_not_in_speed_dex' : 'species_not_in_dex' };
+      return { ok: false, error: page === 'speed'
+        ? (isAtk ? 'species_not_in_speed_dex' : 'species_not_in_speed_def_dex')
+        : (isAtk ? 'species_not_in_dex' : 'species_not_in_def_dex') };
     }
 
     // types·stats·sprite 는 사이트 name watcher 가 채움.
-    att.name = entry;
+    target.name = entry;
 
-    var eiA = defaultEvsIvs(pa.evs, pa.ivs);
-    if (page === 'speed') {
-      att.effort = clampSp(eiA.evs[5]);
-      att.individual_value = eiA.ivs[5] | 0;
-    } else {
-      att.effort = clampSp(physAtk ? eiA.evs[1] : eiA.evs[3]);
-      att.individual_value = physAtk ? eiA.ivs[1] | 0 : eiA.ivs[3] | 0;
+    var ix = cellIndex(state, side, pl, page);
+    var ei = defaultEvsIvs(pl.sp, pl.ivs);
+    if (!isAtk && page !== 'speed') {
+      target.hp_effort = clampSp(ei.evs[0]);
+      target.hp_individual_value = ei.ivs[0] | 0;
     }
-    if (pa.level != null && pa.level > 0) att.level = pa.level | 0;
+    target.effort = clampSp(ei.evs[ix]);
+    target.individual_value = ei.ivs[ix] | 0;
+    if (pl.level != null && pl.level > 0) target.level = pl.level | 0;
 
-    var ap = page === 'speed' ? pa.personality : pa.attackerPersonality;
-    if (ap === 0.9 || ap === 1 || ap === 1.1) att.personality = ap;
+    var n = pl.nature && pl.nature[ix];
+    if (n === 0.9 || n === 1 || n === 1.1) target.personality = n;
 
     // type·power·damage_class 는 사이트 move watcher 도 채우지만, 도감 row 없는 폴백(name '') 이면 watcher 가 안 돌아 직접 넣어 둠.
-    if (page !== 'speed' && pa.attackerMove) {
-      var row = findMoveRow(state, pa.attackerMove);
-      att.move = buildMoveObject(row, pa.attackerMove, physAtk);
+    if (isAtk && page !== 'speed' && pl.attackerMove) {
+      target.move = buildMoveObject(findMoveRow(state, pl.attackerMove), pl.attackerMove, ix === 1);
     }
-    var dexSide = page === 'speed' ? 'speed' : false;
-    att.ability = lookupAbilityObj(state, pa.abilityKo, dexSide);
-    att.equipment = lookupEquipmentObj(state, pa.itemKo, dexSide);
-
-    return { ok: true };
-  }
-
-  function applyDefenderFromPayload(state, pd, physInc, warnings, page) {
-    if (!page) page = 'calc';
-    var def = state[page === 'speed' ? KEY_SPEED_DEF : KEY_DEF];
-    var entry = findPokemonEntry(state, pd.speciesKo);
-    if (!entry) {
-      return { ok: false, error: page === 'speed' ? 'species_not_in_speed_def_dex' : 'species_not_in_def_dex' };
-    }
-
-    def.name = entry;
-
-    var eiD = defaultEvsIvs(pd.evs, pd.ivs);
-    if (page === 'speed') {
-      def.effort = clampSp(eiD.evs[5]);
-      def.individual_value = eiD.ivs[5] | 0;
-    } else {
-      def.hp_effort = clampSp(eiD.evs[0]);
-      def.hp_individual_value = eiD.ivs[0] | 0;
-      def.effort = clampSp(physInc ? eiD.evs[2] : eiD.evs[4]);
-      def.individual_value = physInc ? eiD.ivs[2] | 0 : eiD.ivs[4] | 0;
-    }
-
-    if (pd.level != null && pd.level > 0) def.level = pd.level | 0;
-
-    // 성격 배율도 SP 와 같은 physInc 기준으로 고름 (SW 는 물리/특수 양쪽을 보냄 — calcPayload.finalizePair)
-    var dp = page === 'speed'
-      ? pd.personality
-      : (physInc ? pd.defenderPersonalityPhys : pd.defenderPersonalitySpec);
-    if (dp === 0.9 || dp === 1 || dp === 1.1) def.personality = dp;
-
-    var dexSideDef = page === 'speed' ? 'speed' : true;
-    def.ability = lookupAbilityObj(state, pd.abilityKo, dexSideDef);
-    def.equipment = lookupEquipmentObj(state, pd.itemKo, dexSideDef);
+    var dexSide = page === 'speed' ? 'speed' : !isAtk;
+    target.ability = lookupAbilityObj(state, pl.abilityKo, dexSide);
+    target.equipment = lookupEquipmentObj(state, pl.itemKo, dexSide);
 
     return { ok: true };
   }
@@ -450,84 +423,25 @@
         requestId: requestId,
         ok: result.ok,
         error: result.error,
-        warnings: result.warnings,
       },
       '*'
     );
   }
 
   function runApplyCalcFillCore(state, job, done) {
-    var payloads = job.payloads || {};
-    var onlyAttacker = !!job.onlyAttacker;
-    var onlyDefender = !!job.onlyDefender;
-    var page = job.page === 'speed' ? 'speed' : 'calc';
-
-    var warnings = [];
-
-    var paFull = payloads.attacker && !payloads.attacker.error ? payloads.attacker : null;
-    var pdFull = payloads.defender && !payloads.defender.error ? payloads.defender : null;
-
-    var physAtk = true;
-    var physDef = true;
-    if (paFull) {
-      physAtk = paFull.physicalMove !== false;
-      if (pdFull && typeof pdFull.incomingPhysical === 'boolean') physDef = pdFull.incomingPhysical;
-      else physDef = physAtk;
-    } else if (pdFull && typeof pdFull.incomingPhysical === 'boolean') {
-      var attRef = state[KEY_ATT];
-      var inferred = inferIncomingPhysicalFromAttacker(attRef);
-      if (inferred === false) {
-        physAtk = false;
-        physDef = false;
-      } else if (inferred === true) {
-        physAtk = true;
-        physDef = true;
-      } else {
-        physAtk = pdFull.incomingPhysical;
-        physDef = pdFull.incomingPhysical;
-      }
-    }
-
-    var hasA = !!paFull && !onlyDefender;
-    var hasD = !!pdFull && !onlyAttacker;
-
-    if (payloads.attacker && payloads.attacker.error) {
-      warnings.push('공격측:' + payloads.attacker.error);
-    }
-    if (payloads.defender && payloads.defender.error) {
-      warnings.push('수비측:' + payloads.defender.error);
-    }
-
-    if (!hasA && !hasD) {
-      done({ ok: false, error: 'no_valid_payload', warnings: warnings });
+    if (!job.payload) {
+      done({ ok: false, error: 'no_valid_payload' });
       return;
     }
-
     try {
-      var att = page === 'speed' ? state[KEY_SPEED_ATT] : state[KEY_ATT];
-      if (hasA) {
-        var ra = applyAttackerFromPayload(state, paFull, physAtk, warnings, page);
-        if (!ra.ok) {
-          done({ ok: false, error: ra.error, warnings: warnings });
-          return;
-        }
-        applyWeatherAndTerrain(att, paFull, hasD ? pdFull : null);
+      var r = applySideFromPayload(state, job.side, job.payload, job.page);
+      if (r.ok) {
+        // 날씨·필드는 공격측 칸에 — 공격측을 채울 땐 항상, 수비측을 채울 땐 비어 있을 때만.
+        applyWeatherAndTerrain(state[job.page === 'speed' ? KEY_SPEED_ATT : KEY_ATT], job.payload, job.side === 'defender');
       }
-
-      if (hasD) {
-        var rd = applyDefenderFromPayload(state, pdFull, physDef, warnings, page);
-        if (!rd.ok) {
-          done({ ok: false, error: rd.error, warnings: warnings });
-          return;
-        }
-        if (!hasA) {
-          applyWeatherAndTerrain(att, null, pdFull);
-        }
-      }
-
-      done({ ok: true, warnings: warnings.length ? warnings : undefined });
+      done(r);
     } catch (e) {
-      done({ ok: false, error: String((e && e.message) || e), warnings: warnings });
+      done({ ok: false, error: String((e && e.message) || e) });
     }
   }
 
@@ -575,13 +489,11 @@
     // 같은 window(우리 콘텐츠 스크립트)에서 온 것만 — 사이트 안 다른 출처 iframe 이 계산기 칸을 쓰지 못하게 (teamBuilderBridge 와 같은 가드).
     if (ev.source !== window) return;
     var d = ev.data;
-    if (!d || d.source !== 'nuo-calc-ext' || d.type !== 'NUO_APPLY_CALC_V30') return;
-    var rid = d.requestId != null ? d.requestId : '';
+    if (!d || d.source !== 'nuo-calc-ext' || d.type !== 'NUO_APPLY_CALC_V31') return;
     applyQueue.push({
-      payloads: d.payloads,
-      requestId: rid,
-      onlyAttacker: !!d.onlyAttacker,
-      onlyDefender: !!d.onlyDefender,
+      side: d.side === 'defender' ? 'defender' : 'attacker',
+      payload: d.payload,
+      requestId: d.requestId != null ? d.requestId : '',
       page: d.page === 'speed' ? 'speed' : 'calc',
     });
     pumpQueue();

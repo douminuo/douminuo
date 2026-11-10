@@ -3,7 +3,7 @@
  *
  *  - 프로필 헤더 아래 섹션으로 삽입 (calcFillShared.keepInjected). 누른 패널 = 적용 측
  *    (좌 = 공격, 우 = 수비) — 옛 FAB 의 공격/수비 모드 토글은 폐지.
- *  - 칩 1~6 클릭 → SW GET_CALC_PAYLOADS_FROM_SLOT 로 페이로드 변환 → applyPayloads.
+ *  - 칩 1~6 클릭 → SW GET_CALC_PAYLOADS_FROM_SLOT 로 한쪽 페이로드 변환 → applyPayload (칸 선택은 bridge).
  *  - 슬롯 데이터: 콘텐츠 스크립트 isolated world 의 hot snapshot → chrome.storage.local
  *    영속 캐시 순서로 read. **bridge 호출 안 함**(T-1) — 계산기 라우트로 이동하면 팀빌더
  *    Vue store 가 unmount 되었을 가능성이 높아 빈 결과로 hot/캐시 를 덮어쓸 위험 회피.
@@ -50,14 +50,10 @@
   }
 
   /**
-   * 계산기 페이지의 MAIN-world bridge 에 페이로드 전송 → applyAttackerScalars/applyDefenderScalars.
-   * onlyAttacker / onlyDefender 옵션은 그대로 — 본 라운드의 슬롯 경로도 한쪽만 적용한다.
+   * 계산기 페이지의 MAIN-world bridge 에 한쪽 페이로드 전송 (어느 칸에 넣을지는 bridge 가 정함).
    */
-  function applyPayloads(payloads, opts) {
-    opts = opts || {};
-    var requestId = opts.requestId != null ? String(opts.requestId) : String(Date.now());
-    var onlyAttacker = !!opts.onlyAttacker;
-    var onlyDefender = !!opts.onlyDefender;
+  function applyPayload(side, payload) {
+    var requestId = String(Date.now()) + '-' + Math.random().toString(16).slice(2);
 
     return injectBridgeFromBackground()
       .then(waitForPageFrame)
@@ -80,7 +76,7 @@
             clearTimeout(to);
             window.removeEventListener('message', onMsg);
             if (d.ok) {
-              resolve({ ok: true, warnings: d.warnings });
+              resolve({ ok: true });
             } else {
               reject(new Error(d.error || 'apply_failed'));
             }
@@ -89,11 +85,10 @@
           window.postMessage(
             {
               source: 'nuo-calc-ext',
-              type: 'NUO_APPLY_CALC_V30',
+              type: 'NUO_APPLY_CALC_V31',
               requestId: requestId,
-              payloads: payloads || {},
-              onlyAttacker: onlyAttacker,
-              onlyDefender: onlyDefender,
+              side: side,
+              payload: payload,
               page: currentPage(),
             },
             '*'
@@ -121,7 +116,7 @@
             reject(new Error(mapErr(bg && bg.error) || '페이로드를 만들지 못했습니다.'));
             return;
           }
-          resolve(bg.payloads || {});
+          resolve(bg.payload);
         }
       );
     });
@@ -138,19 +133,8 @@
     }
     var role = side === 'defender' ? 'defender' : 'attacker';
     return getCalcPayloadsFromSlot(slot, role).then(function (pl) {
-      var v;
-      if (role === 'attacker') v = pl.attacker && !pl.attacker.error;
-      else v = pl.defender && !pl.defender.error;
-      if (!v) {
-        var errCode = (role === 'attacker' ? pl.attacker : pl.defender);
-        if (errCode && errCode.error) throw new Error(mapErr(errCode.error));
-        throw new Error(mapErr('no_valid_payload'));
-      }
-      return applyPayloads(pl, {
-        requestId: String(Date.now()) + '-' + Math.random().toString(16).slice(2),
-        onlyAttacker: role === 'attacker',
-        onlyDefender: role === 'defender',
-      });
+      if (!pl) throw new Error(mapErr('no_valid_payload'));
+      return applyPayload(role, pl);
     });
   }
 

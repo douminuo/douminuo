@@ -63,19 +63,16 @@ function freshState(page, atkMove) {
 }
 
 /**
- * calcFill.orchestrateCalcFillFromSlot 과 같은 흐름 (현재 메시지 모양 V30).
+ * calcFill.orchestrateCalcFillFromSlot 과 같은 흐름 (메시지 V31 { side, payload, page }).
  * @returns {Promise<{ err: string } | { ok: boolean, error?: string, side: object }>}
  */
 async function fill(slotData, side, page, atkMove) {
   const bg = await sw.send({ type: 'GET_CALC_PAYLOADS_FROM_SLOT', slot: slotData, side, page });
   if (!bg || !bg.ok) return { err: (bg && bg.error) || 'no_bg' };
-  const pl = bg.payloads || {};
-  const one = pl[side];
-  if (!one || one.error) return { err: (one && one.error) || 'no_valid_payload' };
+  if (!bg.payload) return { err: 'no_valid_payload' };
   const state = freshState(page, atkMove);
   const r = mountBridge(state, page === 'speed' ? '/speed' : '/')({
-    source: 'nuo-calc-ext', type: 'NUO_APPLY_CALC_V30', requestId: 'r', payloads: pl,
-    onlyAttacker: side === 'attacker', onlyDefender: side === 'defender', page,
+    source: 'nuo-calc-ext', type: 'NUO_APPLY_CALC_V31', requestId: 'r', side, payload: bg.payload, page,
   });
   const key = page === 'speed' ? '$sspeed.' + side : '$scalculator.' + side;
   return { ok: !!(r && r.ok), error: r && r.error, side: state[key] };
@@ -119,7 +116,13 @@ async function run() {
 
   // bridge 단독 오류 코드 — 매퍼(mapCalcFillError)가 아는 코드
   const bg = await sw.send({ type: 'GET_CALC_PAYLOADS_FROM_SLOT', slot: hippo, side: 'defender', page: 'calc' });
-  const msg = { source: 'nuo-calc-ext', type: 'NUO_APPLY_CALC_V30', requestId: 'r', payloads: bg.payloads, onlyDefender: true, page: 'calc' };
+  const msg = { source: 'nuo-calc-ext', type: 'NUO_APPLY_CALC_V31', requestId: 'r', side: 'defender', payload: bg.payload, page: 'calc' };
+  // 옛 타입 V30 은 무시 (페이지에 남은 옛 bridge 와 섞이지 않게)
+  r = mountBridge(freshState('calc', ATK_MOVES.physical))(Object.assign({}, msg, { type: 'NUO_APPLY_CALC_V30' }));
+  assert(r === undefined, 'V30 must be ignored: ' + JSON.stringify(r));
+  // 빈 칸 = SW 응답 실패 (화면 문구는 calcFill 의 mapCalcFillError)
+  const empty = await sw.send({ type: 'GET_CALC_PAYLOADS_FROM_SLOT', slot: F.meta_only, side: 'defender', page: 'calc' });
+  assert(empty && !empty.ok && empty.error === 'empty_slot', 'empty slot code: ' + JSON.stringify(empty));
   const noDex = freshState('calc', ATK_MOVES.physical);
   noDex['$spokemon_list'] = [{ kr: '없는종', id: 'x' }];
   r = mountBridge(noDex)(msg);

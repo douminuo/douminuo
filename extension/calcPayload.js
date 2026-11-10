@@ -526,63 +526,38 @@
   }
 
   /**
-   * 슬롯 하나(팀빌더 bridge 의 단일 슬롯)에서 한쪽 페이로드를 만든다.
+   * 슬롯 하나 → 한쪽 패널 페이로드. 칸(공격/특공·방어/특방)은 고르지 않음 — bridge 가 정함
+   * (CALC_SIDE_PLAN: SW 가 미리 고른 값과 bridge 의 선택이 어긋난 버그 bc2352f·8061f1a).
+   * 6칸 배열 순서 = slotRead STAT_KEYS (HP, 공격, 방어, 특공, 특방, 스피드).
    * @param {object} slot 사이트 파티 슬롯 (slotRead.js 모양)
    * @param {object} docs natureKoDoc / natureStatMulDoc / typeKoDoc / moveKoDoc / moveKoFallbackDoc / koNames / moveSlugToEnDoc / moveTagsDoc
    * @param {'attacker'|'defender'} role
-   * @param {'calc'|'speed'=} page — 미지정·옛 호출자는 'calc'. 스피드 계산기는 move 없이 nature.spe 만 반영.
-   * @returns {Promise<object>} { error } 또는 페이로드
+   * @param {'calc'|'speed'=} page — 기술은 계산기 공격측에만 붙음.
+   * @returns {Promise<{ speciesKo, sp: number[], ivs: number[], nature: number[], level, abilityKo, itemKo,
+   *   abilityWeatherKey, abilityTerrainKey, attackerMove? }>} 빈 슬롯·종 없음 = reject (empty_slot / no_species)
    */
   function buildOneSideFromFlatSlot(slot, docs, role, page) {
-    if (!page) page = 'calc';
-    if (SL.isEmpty(slot)) {
-      return Promise.resolve({ error: 'empty_slot' });
-    }
+    if (SL.isEmpty(slot)) return Promise.reject(new Error('empty_slot'));
     var speciesKo = SL.speciesKo(slot);
-    if (!speciesKo) {
-      return Promise.resolve({ error: 'no_species' });
-    }
+    if (!speciesKo) return Promise.reject(new Error('no_species'));
 
-    var evs = SL.spSix(slot);
-    var ivs = ivSix(slot);
-    var natureKo = SL.nature(slot);
-    var nr = natureRowForKo(natureKo, docs.natureKoDoc, docs.natureStatMulDoc);
-    var level = SL.level(slot) || 50;
+    var row = natureRowForKo(SL.nature(slot), docs.natureKoDoc, docs.natureStatMulDoc).row;
     var abilityKo = SL.ability(slot);
-    var itemKo = SL.item(slot);
-
-    if (page === 'speed') {
-      var envSp = envKeysFromAbilityKo(abilityKo, docs.koNames);
-      var persSp = 1;
-      if (nr.row) persSp = personalityScalar(nr.row.spe);
-      return Promise.resolve({
-        speciesKo: speciesKo,
-        evs: evs,
-        ivs: ivs,
-        level: level,
-        abilityKo: abilityKo,
-        itemKo: itemKo,
-        personality: persSp,
-        abilityWeatherKey: envSp.abilityWeatherKey,
-        abilityTerrainKey: envSp.abilityTerrainKey,
-      });
-    }
-
-    if (role === 'defender') {
-      var defEnv = envKeysFromAbilityKo(abilityKo, docs.koNames);
-      return Promise.resolve({
-        speciesKo: speciesKo,
-        evs: evs,
-        ivs: ivs,
-        level: level,
-        abilityKo: abilityKo,
-        itemKo: itemKo,
-        natureKo: natureKo,
-        _defNatureRow: nr.row,
-        abilityWeatherKey: defEnv.abilityWeatherKey,
-        abilityTerrainKey: defEnv.abilityTerrainKey,
-      });
-    }
+    var env = envKeysFromAbilityKo(abilityKo, docs.koNames);
+    var out = {
+      speciesKo: speciesKo,
+      sp: SL.spSix(slot),
+      ivs: ivSix(slot),
+      nature: row
+        ? [1, personalityScalar(row.atk), personalityScalar(row.def), personalityScalar(row.spa), personalityScalar(row.spd), personalityScalar(row.spe)]
+        : [1, 1, 1, 1, 1, 1],
+      level: SL.level(slot) || 50,
+      abilityKo: abilityKo,
+      itemKo: SL.item(slot),
+      abilityWeatherKey: env.abilityWeatherKey,
+      abilityTerrainKey: env.abilityTerrainKey,
+    };
+    if (page === 'speed' || role !== 'attacker') return Promise.resolve(out);
 
     var slugMap = getSlugCanonicalMap(docs.moveSlugToEnDoc);
     var localPack = firstDamagingMoveFromSlotPokemon(
@@ -595,64 +570,13 @@
       ? Promise.resolve(localPack)
       : firstDamagingMoveMeta(slot, docs.koNames, slugMap);
     return packPromise.then(function (movePack) {
-      var physicalMove = true;
-      if (movePack && movePack.meta && movePack.meta.damage_class === 'special') {
-        physicalMove = false;
-      }
-
-      var attackerPersonality = 1;
-      if (nr.row) {
-        attackerPersonality = personalityScalar(physicalMove ? nr.row.atk : nr.row.spa);
-      }
-
-      var atkEnv = envKeysFromAbilityKo(abilityKo, docs.koNames);
       // F40 (2026-05-23): moveTagsDoc 는 docs 묶음에 미리 들어 있음 — SW 가 1회 로드.
       var moveTagsDoc = (docs && docs.moveTagsDoc) || { moves: {} };
-      return Promise.resolve({
-        speciesKo: speciesKo,
-        evs: evs,
-        ivs: ivs,
-        level: level,
-        abilityKo: abilityKo,
-        itemKo: itemKo,
-        physicalMove: physicalMove,
-        attackerPersonality: attackerPersonality,
-        attackerMove:
-          buildAttackerMovePayload(
-            movePack,
-            docs.typeKoDoc,
-            moveTagsDoc,
-            docs.moveSlugToEnDoc
-          ) || defaultAttackerMovePayload(docs.typeKoDoc, moveTagsDoc, docs.moveSlugToEnDoc),
-        abilityWeatherKey: atkEnv.abilityWeatherKey,
-        abilityTerrainKey: atkEnv.abilityTerrainKey,
-      });
+      out.attackerMove =
+        buildAttackerMovePayload(movePack, docs.typeKoDoc, moveTagsDoc, docs.moveSlugToEnDoc) ||
+        defaultAttackerMovePayload(docs.typeKoDoc, moveTagsDoc, docs.moveSlugToEnDoc);
+      return out;
     });
-  }
-
-  /**
-   * defender 페이로드의 _defNatureRow 후처리 + incomingPhysical 결정.
-   */
-  function finalizePair(attacker, defender) {
-    // 한쪽씩만 만듦 → 물리 기본값. 실제 물리/특수(사이코쇼크 = 방어 포함)는 bridge 가 페이지 공격 기술로 정함.
-    var incPhys = true;
-    if (defender && !defender.error) {
-      defender.incomingPhysical = incPhys;
-      var row = defender._defNatureRow;
-      delete defender._defNatureRow;
-      // 본 라운드(#4 추가 픽스): bridge 가 page 의 실제 attacker damage_class 로 physicalIncoming
-      // 을 override 할 수 있으므로, 여기서 한쪽 personality scalar 만 넘기면 bridge 의 override
-      // 와 어긋남(EV 는 특수, personality 는 물리 기준 같은 부분 적용 발생). 양쪽 모두 보낸다.
-      if (row) {
-        defender.defenderPersonalityPhys = personalityScalar(row.def);
-        defender.defenderPersonalitySpec = personalityScalar(row.spd);
-        defender.defenderPersonality = personalityScalar(incPhys ? row.def : row.spd);
-      } else {
-        defender.defenderPersonalityPhys = 1;
-        defender.defenderPersonalitySpec = 1;
-        defender.defenderPersonality = 1;
-      }
-    }
   }
 
   /**
@@ -660,27 +584,11 @@
    * @param {object} slot 팀빌더 bridge 가 준 single slot (slotRead.js 모양)
    * @param {'attacker'|'defender'} side 어느 패널에 적용할지
    * @param {object} docs background.js loadCalcPayloadDocs() 의 8개 doc 묶음
-   * @returns {Promise<{attacker?: object, defender?: object}>} 한쪽만 채워진 모양 (반대쪽은 null).
-   *   incomingPhysical 결정: attacker 단독이면 정의 안 됨 — 호출자가 onlyAttacker 를 줄 것.
-   *   defender 단독이면 디폴트 true.
+   * @returns {Promise<object>} buildOneSideFromFlatSlot 의 페이로드 하나
    */
   function buildSidePayloadFromSlot(slot, side, docs, page) {
-    if (!page) page = 'calc';
-    docs = docs || {};
     cleanupLegacyKoSlugStorage();
-    var role = side === 'defender' ? 'defender' : 'attacker';
-    return buildOneSideFromFlatSlot(slot, docs, role, page).then(function (one) {
-      if (page === 'speed') {
-        if (role === 'attacker') return { attacker: one, defender: null };
-        return { attacker: null, defender: one };
-      }
-      if (role === 'attacker') {
-        finalizePair(one, null);
-        return { attacker: one, defender: null };
-      }
-      finalizePair(null, one);
-      return { attacker: null, defender: one };
-    });
+    return buildOneSideFromFlatSlot(slot, docs || {}, side === 'defender' ? 'defender' : 'attacker', page === 'speed' ? 'speed' : 'calc');
   }
 
   globalThis.nuoCalcPayload = {
