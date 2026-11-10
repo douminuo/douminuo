@@ -1,29 +1,32 @@
 'use strict';
 
 /**
- * calcFillBridge.js (MAIN world) smoke — 가짜 window.__NUXT__.state 에 bridge 를 올리고
- * NUO_APPLY_CALC_V30 을 보내 계산기 칸 값을 assert. sw-snapshot.js 는 SW 페이로드까지만 보므로
- * 페이로드 ↔ bridge 해석이 어긋나는 버그(수비 성격 배율 2026-11-10)는 여기서 잡는다.
- * 페이로드 모양 = calcPayload.finalizePair 출력 (defenderPersonalityPhys/Spec).
+ * 계산기 자동입력 전 구간 smoke — 슬롯 → SW(GET_CALC_PAYLOADS_FROM_SLOT) → calcFillBridge → 가짜 Nuxt state.
+ * sw-snapshot.js 는 SW 페이로드까지만 봐서, 페이로드 ↔ bridge 해석이 어긋나는 버그
+ * (수비 성격 배율 bc2352f, 사이코쇼크 8061f1a)는 여기서 잡는다.
+ *   node scripts/smoke-calc-bridge.js                 고정 assert
+ *   node scripts/smoke-calc-bridge.js --dump out.json  위 + "슬롯 → state" 전체 덤프 (리팩터 전후 비교, 비교 대상 = state 만)
  */
 
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
+const { loadSW, F, slot, stats, mv, EMPTY_MV } = require('./lib/swHarness');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'extension', 'calcFillBridge.js'), 'utf8');
+const BRIDGE_SRC = fs.readFileSync(path.join(__dirname, '..', 'extension', 'calcFillBridge.js'), 'utf8');
+const sw = loadSW(path.join(__dirname, '..', 'extension'));
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
 }
 
-/** 새 window 에 bridge 를 올리고 (job → 결과·state) 를 돌려주는 apply 함수. */
-function mountBridge(state) {
+/** 새 window 에 bridge 를 올림. post(msg) → bridge 응답 (없으면 undefined). */
+function mountBridge(state, pathname) {
   const listeners = [];
   const results = [];
   const win = {
     console,
-    location: { pathname: '/' },
+    location: { pathname: pathname || '/' },
     __NUXT__: state ? { state } : null,
     addEventListener(type, fn) {
       if (type === 'message') listeners.push(fn);
@@ -37,59 +40,105 @@ function mountBridge(state) {
   // bridge 안의 window = vm 전역 프록시 (win 과 다른 객체) — ev.source 가드가 이걸 비교함
   const self = vm.runInContext('this', win);
   win.window = self;
-  vm.runInContext(src, win);
-  return function apply(payloads) {
-    win.postMessage({ source: 'nuo-calc-ext', type: 'NUO_APPLY_CALC_V30', requestId: 'r', payloads, onlyDefender: true, page: 'calc' });
+  vm.runInContext(BRIDGE_SRC, win);
+  return function post(msg) {
+    win.postMessage(msg);
     return results.pop();
   };
 }
 
-function freshState(atkDamageClass) {
-  return {
-    '$spokemon_list': [{ kr: '하마돈', id: 'hippowdon' }],
-    '$scalculator.attacker': { move: { damage_class: atkDamageClass } },
-    '$scalculator.defender': {},
-  };
+const DEX = ['니드킹', '마릴리', '킬가르도 (블레이드)', '킬가르도', '망나뇽', '마임맨', '하마돈'].map((kr, i) => ({ kr, id: 'p' + i }));
+
+/** 페이지 공격 기술: null = 없음. */
+function freshState(page, atkMove) {
+  const s = { '$spokemon_list': DEX };
+  if (page === 'speed') {
+    s['$sspeed.attacker'] = {};
+    s['$sspeed.defender'] = {};
+  } else {
+    s['$scalculator.attacker'] = { move: atkMove || '' };
+    s['$scalculator.defender'] = {};
+  }
+  return s;
+}
+
+/**
+ * calcFill.orchestrateCalcFillFromSlot 과 같은 흐름 (현재 메시지 모양 V30).
+ * @returns {Promise<{ err: string } | { ok: boolean, error?: string, side: object }>}
+ */
+async function fill(slotData, side, page, atkMove) {
+  const bg = await sw.send({ type: 'GET_CALC_PAYLOADS_FROM_SLOT', slot: slotData, side, page });
+  if (!bg || !bg.ok) return { err: (bg && bg.error) || 'no_bg' };
+  const pl = bg.payloads || {};
+  const one = pl[side];
+  if (!one || one.error) return { err: (one && one.error) || 'no_valid_payload' };
+  const state = freshState(page, atkMove);
+  const r = mountBridge(state, page === 'speed' ? '/speed' : '/')({
+    source: 'nuo-calc-ext', type: 'NUO_APPLY_CALC_V30', requestId: 'r', payloads: pl,
+    onlyAttacker: side === 'attacker', onlyDefender: side === 'defender', page,
+  });
+  const key = page === 'speed' ? '$sspeed.' + side : '$scalculator.' + side;
+  return { ok: !!(r && r.ok), error: r && r.error, side: state[key] };
 }
 
 // 장난꾸러기(방어↑ 특공↓) 하마돈: 방어 SP 2, 특방 SP 32
-const hippo = {
-  speciesKo: '하마돈',
-  evs: [2, 0, 2, 0, 32, 0],
-  incomingPhysical: true,
-  defenderPersonality: 1.1,
-  defenderPersonalityPhys: 1.1,
-  defenderPersonalitySpec: 1,
-  abilityKo: '',
-  itemKo: '',
+const hippo = slot(6, {
+  name: { id: 'hippowdon', db_en: 'hippowdon', smogon_id: 'hippowdon', name: 'Hippowdon', kr: '하마돈', types: ['Ground'] },
+  name_kr: '하마돈', sprite: '', first_type: 'ground',
+  personality: { name: '장난꾸러기', up: '방어', down: '특공', display: '장난꾸러기' },
+  stats: stats([2, 0, 2, 0, 32, 0], [215, 132, 154, 79, 124, 67]),
+  moves: [mv('earthquake', 'Earthquake', '지진', 'Ground', '땅', 100, 'Physical'), EMPTY_MV, EMPTY_MV, EMPTY_MV],
+});
+const FIX = Object.assign({}, F, { hippo });
+
+const ATK_MOVES = {
+  physical: { damage_class: 'Physical', name: { id: 'earthquake' } },
+  special: { damage_class: 'Special', name: { id: 'psychic' } },
+  psyshock: { damage_class: 'Special', name: { id: 'psyshock' } },
+  none: null,
 };
 
-// 공격측 특수기 → 특방 칸: SP 32, 성격 1 (물리 기준 1.1 이 들어가면 안 됨)
-let st = freshState('Special');
-let r = mountBridge(st)({ defender: hippo });
-assert(r && r.ok, 'special apply ok: ' + JSON.stringify(r));
-assert(st['$scalculator.defender'].effort === 32, 'special effort: got ' + st['$scalculator.defender'].effort);
-assert(st['$scalculator.defender'].personality === 1, 'special personality: got ' + st['$scalculator.defender'].personality);
+async function run() {
+  // --- 고정 assert ---
+  let r = await fill(hippo, 'defender', 'calc', ATK_MOVES.special);
+  assert(r.ok && r.side.effort === 32 && r.side.personality === 1, 'hippo vs special: ' + JSON.stringify([r.side && r.side.effort, r.side && r.side.personality]));
+  r = await fill(hippo, 'defender', 'calc', ATK_MOVES.physical);
+  assert(r.ok && r.side.effort === 2 && r.side.personality === 1.1, 'hippo vs physical: ' + JSON.stringify([r.side.effort, r.side.personality]));
+  r = await fill(hippo, 'defender', 'calc', ATK_MOVES.psyshock);
+  assert(r.ok && r.side.effort === 2 && r.side.personality === 1.1, 'hippo vs psyshock: ' + JSON.stringify([r.side.effort, r.side.personality]));
+  // 공격측: 물리기 슬롯 → 공격 칸 (마릴리 고집 = 공격 1.1), 특수기 슬롯 → 특공 칸 (마임맨)
+  r = await fill(F.azumarill, 'attacker', 'calc');
+  assert(r.ok && r.side.effort === 32 && r.side.personality === 1.1, 'azumarill attacker: ' + JSON.stringify([r.side.effort, r.side.personality]));
+  r = await fill(F.mrmime_single_en_item, 'attacker', 'calc');
+  assert(r.ok && r.side.effort === 32 && r.side.personality === 1, 'mrmime attacker: ' + JSON.stringify([r.side.effort, r.side.personality]));
+  // 스피드: 망나뇽 스피드 SP 32
+  r = await fill(F.dragonite, 'attacker', 'speed');
+  assert(r.ok && r.side.effort === 32, 'dragonite speed attacker: ' + JSON.stringify(r.side && r.side.effort));
+  r = await fill(F.dragonite, 'defender', 'speed');
+  assert(r.ok && r.side.effort === 32, 'dragonite speed defender: ' + JSON.stringify(r.side && r.side.effort));
 
-// 공격측 물리기 → 방어 칸: SP 2, 성격 1.1
-st = freshState('Physical');
-r = mountBridge(st)({ defender: hippo });
-assert(r && r.ok, 'physical apply ok');
-assert(st['$scalculator.defender'].effort === 2, 'physical effort: got ' + st['$scalculator.defender'].effort);
-assert(st['$scalculator.defender'].personality === 1.1, 'physical personality: got ' + st['$scalculator.defender'].personality);
+  // bridge 단독 오류 코드 — 매퍼(mapCalcFillError)가 아는 코드
+  const bg = await sw.send({ type: 'GET_CALC_PAYLOADS_FROM_SLOT', slot: hippo, side: 'defender', page: 'calc' });
+  const msg = { source: 'nuo-calc-ext', type: 'NUO_APPLY_CALC_V30', requestId: 'r', payloads: bg.payloads, onlyDefender: true, page: 'calc' };
+  const noDex = freshState('calc', ATK_MOVES.physical);
+  noDex['$spokemon_list'] = [{ kr: '없는종', id: 'x' }];
+  r = mountBridge(noDex)(msg);
+  assert(r && !r.ok && r.error === 'species_not_in_def_dex', 'unknown species code: ' + JSON.stringify(r));
+  r = mountBridge(null)(msg);
+  assert(r && r.error === 'nuxt_state_not_found', 'no nuxt code: ' + JSON.stringify(r));
 
-// 사이코쇼크(특수지만 방어로 맞음) → 방어 칸: SP 2, 성격 1.1 (사이트 수비 실수치도 방어 기준, 실측 2026-11-10)
-st = freshState('Special');
-st['$scalculator.attacker'].move.name = { id: 'psyshock', kr: '사이코쇼크' };
-r = mountBridge(st)({ defender: hippo });
-assert(r && r.ok, 'psyshock apply ok');
-assert(st['$scalculator.defender'].effort === 2, 'psyshock effort: got ' + st['$scalculator.defender'].effort);
-assert(st['$scalculator.defender'].personality === 1.1, 'psyshock personality: got ' + st['$scalculator.defender'].personality);
-
-// 실패 = 매퍼(mapCalcFillError)가 아는 코드로 응답
-r = mountBridge(freshState('Physical'))({ defender: Object.assign({}, hippo, { speciesKo: '없는종' }) });
-assert(r && !r.ok && r.error === 'species_not_in_def_dex', 'unknown species code: ' + JSON.stringify(r));
-r = mountBridge(null)({ defender: hippo });
-assert(r && r.error === 'nuxt_state_not_found', 'no nuxt code: ' + JSON.stringify(r));
-
-console.log('smoke-calc-bridge: ok');
+  // --- 덤프 ---
+  const dumpAt = process.argv.indexOf('--dump');
+  if (dumpAt !== -1) {
+    const out = {};
+    for (const [k, s] of Object.entries(FIX)) {
+      out['calc attacker ' + k] = await fill(s, 'attacker', 'calc');
+      for (const [mk, m] of Object.entries(ATK_MOVES)) out['calc defender ' + k + ' vs ' + mk] = await fill(s, 'defender', 'calc', m);
+      for (const side of ['attacker', 'defender']) out['speed ' + side + ' ' + k] = await fill(s, side, 'speed');
+    }
+    fs.writeFileSync(process.argv[dumpAt + 1], JSON.stringify(out, null, 1));
+    console.log('dumped', Object.keys(out).length, 'cases');
+  }
+  console.log('smoke-calc-bridge: ok');
+}
+run().catch((e) => { console.error(e); process.exit(1); });
