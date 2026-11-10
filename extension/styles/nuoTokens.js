@@ -24,7 +24,6 @@
     '--nuo-text: #000;',
     '--nuo-text-strong: #272727;',
     '--nuo-text-muted: var(--menu-inactive, #626262);',
-    '--nuo-text-subtle: #888;',
     '--nuo-font: SCDream, "Noto Sans KR", sans-serif;'
   ].join(' ');
   g.nuoTokensDecl = DECL;

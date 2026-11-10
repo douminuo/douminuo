@@ -12,7 +12,6 @@
   --nuo-text: #000;
   --nuo-text-strong: #272727;
   --nuo-text-muted: #626262;
-  --nuo-text-subtle: #888;
   color-scheme: light;
 }
 
@@ -42,7 +41,7 @@ body.embed .popup-head { padding-right: 40px; }
 .popup-version {
   margin-left: auto;
   font-size: 10px;
-  color: var(--nuo-text-subtle);
+  color: var(--nuo-text-muted);
   text-decoration: none;
   font-variant-numeric: tabular-nums;
 }
@@ -56,7 +55,7 @@ body.embed .popup-head { padding-right: 40px; }
   letter-spacing: -0.35px;
   color: var(--nuo-text-strong);
 }
-.sub { margin: 2px 0 8px; font-size: 10px; color: var(--nuo-text-subtle); }
+.sub { margin: 2px 0 8px; font-size: 10px; color: var(--nuo-text-muted); }
 .settings-heading-row + .sub { margin-bottom: 0; }
 #panelSettings .settings-heading-row { display: flex; align-items: center; justify-content: space-between; }
 

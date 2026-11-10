@@ -1024,10 +1024,16 @@
     var tIt = root.getElementById('tgl-it');
     var tOpp = root.getElementById('tgl-opp');
     var wrap = root.getElementById('wrap');
+    var chv = root.getElementById('chv');
     if (tAb) tAb.classList.toggle('on', abilityOn);
     if (tIt) tIt.classList.toggle('on', itemOn);
     if (tOpp) tOpp.classList.toggle('on', oppScarfOn);
+    // 켬·끔은 색으로만 보임 (사이트 급소·충전 칩과 같음) — 스크린리더용 상태만 덧붙임
+    if (tAb) tAb.setAttribute('aria-pressed', String(abilityOn));
+    if (tIt) tIt.setAttribute('aria-pressed', String(itemOn));
+    if (tOpp) tOpp.setAttribute('aria-pressed', String(oppScarfOn));
     if (wrap) wrap.classList.toggle('collapsed', collapsed);
+    if (chv) chv.setAttribute('aria-expanded', String(!collapsed));
     if (collapsed) hideSpeciesPopover(root);
   }
 

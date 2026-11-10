@@ -59,13 +59,14 @@
     if (document.getElementById(TB_INLINE_STYLE_ID)) return;
     var st = document.createElement('style');
     st.id = TB_INLINE_STYLE_ID;
+    // 글자색 #434343 = 같은 카드의 사이트 보조 글자(성격·도구) 실측 (2026-10-29). 옛 #888 은 타입 배경 위 대비 2.1~3.0.
     st.textContent =
-      '.nuo-fmt-tb-ann{font-size:9px;font-weight:400;color:#888;display:inline;}' +
+      '.nuo-fmt-tb-ann{font-size:9px;font-weight:400;color:#434343;display:inline;}' +
       '.nuo-fmt-tb-ann-num{white-space:nowrap;}' +
       // 두 줄로 꺾인 기술만: 사이트 행 높이(18.75px) 고정이라 줄간격 압축 + 결정력 글씨 축소로 옆 줄 겹침 방지
       '[data-nuo-tb-wrap]{line-height:10px !important;}' +
       '[data-nuo-tb-wrap] .nuo-fmt-tb-ann{display:block;font-size:8px;line-height:9px;}' +
-      '.nuo-fmt-tb-bulk-corner{position:absolute;top:8px;right:10px;font-size:9px;font-weight:400;color:#888;line-height:1.2;text-align:right;white-space:nowrap;pointer-events:none;z-index:4;}';
+      '.nuo-fmt-tb-bulk-corner{position:absolute;top:8px;right:10px;font-size:9px;font-weight:400;color:#434343;line-height:1.2;text-align:right;white-space:nowrap;pointer-events:none;z-index:4;}';
     document.head.appendChild(st);
   }
 

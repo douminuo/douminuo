@@ -13,9 +13,10 @@
     '.count .lbl { grid-column: 2; font-size: 14px; font-weight: 500; letter-spacing: -0.35px; color: var(--nuo-text-strong); }',
     // 박스 파티 탭 — 사이트 상단 메뉴("계산기 | 스피드 | 도감")식 텍스트 탭 + 세로 구분선 (목업 합의 2026-09-26).
     '.tabs { display: flex; align-items: center; }',
-    '.tab { padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; color: #b5b5b5; cursor: pointer; transition: color 0.15s; }',
-    '.tab:hover { color: var(--nuo-text-muted); }',
-    '.tab.on { color: var(--nuo-text-strong); cursor: default; }',
+    // 색 = 사이트 상단 메뉴처럼 선택 분홍·나머지 --menu-inactive (2026-10-29 사용자 선택 B안). 옛 비활성 #b5b5b5 는 대비 2.05.
+    '.tab { padding: 0; border: 0; background: none; font: inherit; letter-spacing: inherit; color: var(--nuo-text-muted); cursor: pointer; transition: color 0.15s; }',
+    '.tab:hover { color: var(--nuo-text-strong); }',
+    '.tab.on { color: var(--nuo-primary); cursor: default; }',
     '.tabs i { display: block; width: 1px; height: 12px; margin: 0 10px; background: #d0d0d0; }',
     '.tab:focus-visible { outline: 2px solid var(--nuo-primary-focus); outline-offset: 2px; }',
     // 개수 뱃지 = 사이트 파티 탭 "SP 66/66" 뱃지 실측(2026-09-24: 9px/300 lh13.5, padding 2px 8px, radius 5) — 색만 회색.
@@ -77,9 +78,9 @@
     // 이름 = 샘플 카드 종 이름(.line b 14px/500 #000)을 타일 폭(≈106px)에 맞춰 11px — "메가한카리아스Z" 가 한 줄에 들어가는 크기.
     // 왼쪽 정렬 = 샘플 카드 최소화판 (사용자 요청 2026-09-26). 일러는 가운데 유지.
     '.tl .pn { align-self: flex-start; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 500; line-height: 14px; color: #000; }',
-    // 빈 칸 = 연회색 + 가운데 슬롯 번호 (사용자 선택). 번호 색 = 박스 비활성 탭 #b5b5b5, 노말 타입(#E3E3E3)보다 옅은 배경.
+    // 빈 칸 = 연회색 + 가운데 슬롯 번호 (사용자 선택). 번호 색 = 박스 비활성 탭과 같은 --nuo-text-muted, 노말 타입(#E3E3E3)보다 옅은 배경.
     '.tl.e { justify-content: center; padding: 0; background: #f5f5f5; }',
-    '.tl .no { font-size: 14px; font-weight: 500; color: #b5b5b5; }',
+    '.tl .no { font-size: 14px; font-weight: 500; color: var(--nuo-text-muted); }',
     // 물건 = 일러 상자 오른쪽 아래 겹침 — 사이트 카드(일러 75 · 물건 30)와 같은 0.4 비율·위치.
     '.tl .ab { position: relative; flex: none; width: 50px; height: 50px; }',
     '.tl .a { display: block; width: 50px; height: 50px; object-fit: contain; }',

@@ -61,7 +61,7 @@
       '  font: 400 12px/1.5 var(--nuo-font); color: var(--nuo-text);',
       '}',
       '.msg { flex: 1; white-space: nowrap; }',
-      '.version { color: var(--nuo-primary); cursor: pointer; font-weight: 500; }',
+      '.version { color: var(--nuo-primary); cursor: pointer; font-weight: 500; text-decoration: none; }',
       '.version:hover { text-decoration: underline; }',
       '.dismiss { flex: 0 0 auto; width: 16px; height: 16px; padding: 0; border: 0; background: none; color: var(--nuo-text-muted); cursor: pointer; line-height: 0; transition: color 0.15s; }',
       '.dismiss:hover { color: var(--nuo-primary); }',
@@ -73,7 +73,7 @@
       '<style>' + css + '</style>' +
       '<div class="toast">' +
         '<span class="msg">' +
-          '도우미누오가 <span class="version"></span>으로 업데이트되었습니다.' +
+          '도우미누오가 <a class="version" href="' + CHANGELOG_URL + '" target="_blank" rel="noopener noreferrer"></a>으로 업데이트되었습니다.' +
         '</span>' +
         '<button class="dismiss" aria-label="닫기"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><line x1="1.5" y1="1.5" x2="10.5" y2="10.5"/><line x1="10.5" y1="1.5" x2="1.5" y2="10.5"/></svg></button>' +
       '</div>';
@@ -130,11 +130,6 @@
       frozen = false;
       // 동결 해제: 3초 타이머 시작
       startAutoTimer(FREEZE_THRESHOLD);
-    });
-
-    // 버전 클릭 → CHANGELOG 새 탭 (토스트 유지)
-    shadow.querySelector('.version').addEventListener('click', function () {
-      window.open(CHANGELOG_URL, '_blank');
     });
 
     // 닫기 버튼 → 즉시 dismiss
