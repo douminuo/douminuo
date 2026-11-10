@@ -1,16 +1,18 @@
 'use strict';
 // SW(background.js) 를 vm 에 통째로 올리는 하네스 + 사이트 모양 슬롯 픽스처 — sw-snapshot.js·smoke 공용.
-// 파티 공유 POST 는 가짜 id 로 응답 (네트워크 안 나감), 그 외 외부 fetch 는 실패.
+// 공유 POST 는 가짜 id 로 응답 (네트워크 안 나감), 그 외 외부 fetch 는 실패.
+// 공유 POST 실패: sw.failShare = (body) => 'http' | 'noid' | 'net' | 아무것도 (= 성공). 본문으로 n번째 칸만 골라 실패시킬 수 있음.
 const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-/** @returns {{ send: (msg: object) => Promise<any>, net: string[], storageSets: string[][] }} */
+/** @returns {{ send: (msg: object) => Promise<any>, net: string[], storageSets: string[][], failShare: null | ((body: string) => string | undefined) }} */
 function loadSW(extDir) {
   const EXT = path.resolve(extDir);
   const net = [];
   const storageSets = [];
   let listener = null;
+  const api = { send, net, storageSets, failShare: null };
   const ctx = { console, setTimeout, clearTimeout, Promise, JSON, Object, Array, Date, Math };
   ctx.globalThis = ctx.self = ctx;
   ctx.importScripts = (...files) => files.forEach((f) => vm.runInContext(fs.readFileSync(path.join(EXT, f), 'utf8'), ctx, { filename: f }));
@@ -36,8 +38,12 @@ function loadSW(extDir) {
     }
     net.push(url + ' ' + ((init && init.body) || '').length);
     if (url.endsWith('/api/party/share')) {
-      const id = 'ID' + ((init && init.body) || '').length;
-      return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve({ id }), text: () => Promise.resolve(JSON.stringify({ id })) });
+      const body = (init && init.body) || '';
+      const fail = api.failShare && api.failShare(body);
+      if (fail === 'net') return Promise.reject(new TypeError('Failed to fetch'));
+      const j = fail === 'http' ? { message: 'Internal Server Error' } : fail === 'noid' ? {} : { id: 'ID' + body.length };
+      const status = fail === 'http' ? 500 : 200;
+      return Promise.resolve({ ok: status === 200, status, json: () => Promise.resolve(j), text: () => Promise.resolve(JSON.stringify(j)) });
     }
     return Promise.reject(new Error('no_net'));
   };
@@ -50,7 +56,7 @@ function loadSW(extDir) {
       if (r !== true) resolve('(sync/none)');
     });
   }
-  return { send, net, storageSets };
+  return api;
 }
 
 function mv(id, en, kr, typeEn, typeKo, bp, cat) {
