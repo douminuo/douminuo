@@ -334,6 +334,13 @@
       // 재앙의검/구슬: 사이트 support 와 같은 자리. 포톤게이저는 유효 물리/특수 기준.
       if (isPhys && ar.movePowerFoeDefenseRuinMul != null) d *= num(ar.movePowerFoeDefenseRuinMul, 1);
       if (isSpec && ar.movePowerFoeSpDefenseRuinMul != null) d *= num(ar.movePowerFoeSpDefenseRuinMul, 1);
+      // 달인의띠·브레인포스: 효과가 굉장할 때만 → 상성표 없이 "약점 상정"으로 buffed 만 (사이트 결정력엔 없음,
+      // 데미지에서만 약점일 때 ×1.2 — 실측 2026-11-10, 사용자 결정). 노말은 약점을 찌를 수 없어 제외. 약점 배율 자체는 안 곱함.
+      // shortcut: 다른 최종 배율과의 곱 순서는 사이트 데미지와 대조 안 함, 1 차이가 나면 자리 옮길 것.
+      var seMul = (ir.superEffectiveMul != null ? num(ir.superEffectiveMul, 1) : 1) *
+        (ar.superEffectiveMul != null ? num(ar.superEffectiveMul, 1) : 1);
+      // 1.5×1.2 = 1.7999… 로 floor 가 1 모자라는 것 방지 — 사이트에 없는 값이라 이 경우만 반올림해 정리.
+      if (buffed && moveTypeEn !== 'normal' && seMul !== 1) d = Math.round(d * seMul * 1e9) / 1e9;
       return d;
     }
 

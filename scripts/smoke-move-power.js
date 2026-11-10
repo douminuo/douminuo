@@ -57,6 +57,15 @@ assert(row[0].buffed === wantTough, 'tough claws buffed: got ' + row[0].buffed +
 assert(row[0].base === row[0].buffed, 'tough claws base equals buffed');
 assert(row[0].cls === 'physical', 'fire punch cls is physical');
 
+// 달인의띠·브레인포스: 약점 상정으로 buffed 만, 노말기는 제외
+const beltMon = { pokemon: { moves: [firePunch, { name: 'Body Slam', power: '85', damage_class: 'physical', type: 'Normal' }], stats: { attack: { real: 100 } } }, equipment: { name: 'Expert Belt' } };
+const belt = cmp(Object.assign({}, beltMon, { ability: null }), ['fire']);
+assert(belt[0].base === Math.floor(75 * 100 * 1.5), 'expert belt base: got ' + belt[0].base);
+assert(belt[0].buffed === Math.floor(75 * 100 * 1.5 * 1.2), 'expert belt buffed: got ' + belt[0].buffed);
+assert(belt[1].base === belt[1].buffed, 'expert belt skips normal move');
+const neuro = cmp(Object.assign({}, beltMon, { ability: { name: 'Neuroforce' } }), ['fire']);
+assert(neuro[0].buffed === Math.floor(75 * 100 * 1.5 * 1.2 * 1.25), 'belt + neuroforce buffed: got ' + neuro[0].buffed);
+
 // 포톤가이저: 공격 > 특공이면 물리로 계산 → cls 도 physical (요약의 실능치 가림이 이걸 봄)
 const photon = { name: 'Photon Geyser', power: '100', damage_class: 'special', type: 'Psychic' };
 const pg = cmp({ pokemon: { moves: [photon], stats: { attack: { real: 180 }, special_attack: { real: 133 } } } }, ['psychic']);

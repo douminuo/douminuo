@@ -1,9 +1,13 @@
 {
-  "version": 17,
+  "version": 18,
   "items": {
     "choice-band": {
       "atkMulPhysical": 1.5,
       "nameKo": "구애머리띠"
+    },
+    "expert-belt": {
+      "superEffectiveMul": 1.2,
+      "nameKo": "달인의띠"
     },
     "choice-specs": {
       "spaMulSpecial": 1.5,
@@ -462,6 +466,10 @@
     }
   },
   "abilities": {
+    "neuroforce": {
+      "superEffectiveMul": 1.25,
+      "nameKo": "브레인포스"
+    },
     "huge-power": {
       "atkMulPhysical": 2,
       "nameKo": "천하장사"
