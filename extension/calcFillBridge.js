@@ -8,8 +8,8 @@
  * 본 파일이 NUO_CALC_RESULT 로 응답한다. 프로토콜 유지.
  */
 (function () {
-  if (window.__NUO_CALC_BRIDGE_V42__) return;
-  window.__NUO_CALC_BRIDGE_V42__ = true;
+  if (window.__NUO_CALC_BRIDGE_V43__) return;
+  window.__NUO_CALC_BRIDGE_V43__ = true;
 
   var KEY_POKE_LIST = '$spokemon_list';
   var KEY_ATT = '$scalculator.attacker';
@@ -356,8 +356,13 @@
     };
   }
 
+  /** 특수기지만 상대 방어로 맞는 기술 (move.name.id = Showdown id). 사이트 수비 칸도 방어 실수치로 바뀜 (실측 2026-11-10). */
+  var SPECIAL_HITS_DEF = { psyshock: 1, psystrike: 1, secretsword: 1 };
+
   function inferIncomingPhysicalFromAttacker(att) {
     if (!att || !att.move) return null;
+    var mn = att.move.name;
+    if (mn && typeof mn === 'object' && SPECIAL_HITS_DEF[String(mn.id || '').toLowerCase()]) return true;
     var dc = String(att.move.damage_class || '').toLowerCase();
     if (dc === 'special') return false;
     if (dc === 'physical') return true;

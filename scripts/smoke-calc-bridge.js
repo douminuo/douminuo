@@ -78,6 +78,14 @@ assert(r && r.ok, 'physical apply ok');
 assert(st['$scalculator.defender'].effort === 2, 'physical effort: got ' + st['$scalculator.defender'].effort);
 assert(st['$scalculator.defender'].personality === 1.1, 'physical personality: got ' + st['$scalculator.defender'].personality);
 
+// 사이코쇼크(특수지만 방어로 맞음) → 방어 칸: SP 2, 성격 1.1 (사이트 수비 실수치도 방어 기준, 실측 2026-11-10)
+st = freshState('Special');
+st['$scalculator.attacker'].move.name = { id: 'psyshock', kr: '사이코쇼크' };
+r = mountBridge(st)({ defender: hippo });
+assert(r && r.ok, 'psyshock apply ok');
+assert(st['$scalculator.defender'].effort === 2, 'psyshock effort: got ' + st['$scalculator.defender'].effort);
+assert(st['$scalculator.defender'].personality === 1.1, 'psyshock personality: got ' + st['$scalculator.defender'].personality);
+
 // 실패 = 매퍼(mapCalcFillError)가 아는 코드로 응답
 r = mountBridge(freshState('Physical'))({ defender: Object.assign({}, hippo, { speciesKo: '없는종' }) });
 assert(r && !r.ok && r.error === 'species_not_in_def_dex', 'unknown species code: ' + JSON.stringify(r));
