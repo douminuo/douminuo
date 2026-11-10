@@ -74,5 +74,8 @@ const out = paste({ pokemon: { name: 'farfetchd', equipment: '대파', ability: 
 assert(out.indexOf('Farfetchd @ Leek') === 0 && out.indexOf('Ability: Lingering Aroma') > 0, 'Showdown 도구·특성: ' + out);
 const outMoves = paste({ pokemon: { name: 'garchomp', equipment: '라이츄나이트X', moves: [{ name_kr: '지진' }, { name_kr: '드래곤클로' }, { name_kr: '모르는기술' }] } });
 assert(/@ Raichunite X/.test(outMoves) && /- Earthquake/.test(outMoves) && /- Dragon Claw/.test(outMoves) && /- 모르는기술/.test(outMoves), 'Showdown 기술: ' + outMoves);
+// 종 이름 = 사이트 도감 행의 Showdown 이름(name.name) 우선 — db_en 대문자화는 'Indeedee-Female' 처럼 안 풀림
+const outSd = paste({ pokemon: { name: { db_en: 'indeedee-female', name: 'Indeedee-F', kr: '에써르' }, moves: [] } });
+assert(outSd.indexOf('Indeedee-F') === 0, 'Showdown 종 이름: ' + outSd);
 
 console.log('smoke-ko-names: ok');

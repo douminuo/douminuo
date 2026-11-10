@@ -131,7 +131,7 @@
   function oneSet(slot, ctx) {
     if (SL.isEmpty(slot)) return '';
     var slug = SL.speciesSlug(slot);
-    var species = slug ? formatSpeciesFromSlug(slug) : 'Pokemon';
+    var species = SL.speciesShowdown(slot) || (slug ? formatSpeciesFromSlug(slug) : 'Pokemon');
 
     var itemStr = resolveHoldEn(ctx.names.item, SL.item(slot));
     var head = itemStr ? species + ' @ ' + itemStr : species;

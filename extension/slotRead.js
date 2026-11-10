@@ -75,6 +75,13 @@
     return /^[a-z0-9-]+$/.test(s) ? s : '';
   }
 
+  /** 종 Showdown 이름 (name.name — 'Indeedee-F', 'Tauros-Paldea-Combat'). 없으면 ''. db_en 을 대문자화하면 29종이 Showdown 에서 안 풀림 (2026-11-10 전수 대조). */
+  function speciesShowdown(slot) {
+    var p = mon(slot);
+    var n = p && p.name;
+    return n && typeof n === 'object' && typeof n.name === 'string' ? n.name.trim() : '';
+  }
+
   /** 기술 4칸 표시 이름 (name_kr → name.kr). 빈 칸 ''. */
   function moves(slot) {
     var p = mon(slot);
@@ -152,6 +159,7 @@
     sampleName: sampleName,
     speciesKo: speciesKo,
     speciesSlug: speciesSlug,
+    speciesShowdown: speciesShowdown,
     item: function (slot) { return field(slot, 'equipment'); },
     ability: function (slot) { return field(slot, 'ability'); },
     nature: function (slot) { return field(slot, 'personality'); },
