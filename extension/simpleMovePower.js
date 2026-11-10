@@ -115,19 +115,6 @@
     psychic: { psychic: 1.3 },
   };
 
-  /** 표기용: 맹화·모래의힘·날씨/필드 깔기·선파워(특공)만 '버프 후' 전제 */
-  function abilityHasConditionalPowerDisplay(ar) {
-    var a = ar || {};
-    return !!(
-      a.pinchBoostType != null ||
-      a.sandForce === true ||
-      a.setsWeather != null ||
-      a.setsTerrain != null ||
-      a.spaBoostInSun != null ||
-      a.alwaysStab === true
-    );
-  }
-
   /** 사이트 fe() 와 같은 4096 고정소수점 곱 (부자유친 2타째 ×0.25). */
   function pokeRound(v, mul) {
     var m = (mul * 4096) >>> 0;
@@ -138,7 +125,7 @@
    * F8: 한 번의 호출로 base 와 buffed 결정력을 동시에 계산.
    * - 스마트누오 결정력(potential) 구조: 실수치 l·위력 u 는 배율마다 floor, 최종 d 는 floor 없이 곱, floor(u*l*d).
    * - 조건부 곱(맹화·모래의힘·setsWeather/setsTerrain·spaBoostInSun·condAtk/SpaMul*) 은 Buffed 에만 적용.
-   * - abilityHasConditionalPowerDisplay 가 false 인(또는 조건부가 매치 안 되는) 경우 base === buffed.
+   * - 조건부가 하나도 매치 안 되면 base === buffed.
    *
    * @returns {{ base: number, buffed: number, cls: 'physical'|'special' }|null}
    *   cls 는 호출자(ruin 보정 분기)가 활용. null 이면 변화기/위력 0/비공격기.

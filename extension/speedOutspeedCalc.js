@@ -1156,12 +1156,6 @@
       sbHideTimer = null;
     }
     sbDragging = false;
-    if (currentRoot && currentRoot._nuoSpeedPopDocClose) {
-      try {
-        document.removeEventListener('mousedown', currentRoot._nuoSpeedPopDocClose, true);
-      } catch (e) {}
-      delete currentRoot._nuoSpeedPopDocClose;
-    }
     if (currentRoot && currentRoot.host && currentRoot.host.parentElement) {
       currentRoot.host.parentElement.removeChild(currentRoot.host);
     }

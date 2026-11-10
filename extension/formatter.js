@@ -103,7 +103,7 @@
    *   `bulkConditional === true` 마킹된 보정 (멀티스케일·스펙터가드 등 풀체력 조건부 류) 을 skip.
    *   인라인 어노가 한 숫자만 보여주는 컨텍스트에서 “상시 유효” 가정이 깨지는 보정을 빼기 위해.
    *   샘플텍스트 path (legacy wrapper) 는 opts 안 넘기므로 현재 동작 그대로.
-   *   결정력의 abilityHasConditionalPowerDisplay 패턴과 컨셉 일치 — 데이터에 “조건부” 마킹.
+   *   결정력의 base/buffed 분리와 컨셉 일치 — 데이터에 “조건부” 마킹.
    *
    * @param {object} [opts]
    * @param {boolean} [opts.excludeConditionalAbilities]

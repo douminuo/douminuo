@@ -281,10 +281,15 @@ importScripts('showdownPaste.js');
       });
   }
 
+  /** slug → 타입 Promise. 같은 종 = SW 라이프타임 1회 (TEMPLATES §10.4). 404 의 [] 도 저장, 네트워크 실패만 다음에 재시도. */
+  var typeFetchMemo = Object.create(null);
+
   function fetchPokemonTypesEn(name) {
     if (!name) return Promise.resolve([]);
-    var url = 'https://pokeapi.co/api/v2/pokemon/' + encodeURIComponent(String(name).toLowerCase());
-    return fetch(url, {
+    var key = String(name).toLowerCase();
+    if (typeFetchMemo[key]) return typeFetchMemo[key];
+    var url = 'https://pokeapi.co/api/v2/pokemon/' + encodeURIComponent(key);
+    return (typeFetchMemo[key] = fetch(url, {
       headers: { Accept: 'application/json' },
     })
       .then(function (res) {
@@ -300,8 +305,9 @@ importScripts('showdownPaste.js');
           .filter(Boolean);
       })
       .catch(function () {
+        delete typeFetchMemo[key];
         return [];
-      });
+      }));
   }
 
   function collectTypesFromSlotPokemon(poke) {
