@@ -355,7 +355,8 @@
       return L * hits;
     }
 
-    return { base: total(lBase, false), buffed: total(lBuffed, true), cls: cls };
+    // 포톤가이저는 위에서 isPhys 가 바뀌므로 원래 분류 대신 실제 쓴 쪽을 돌려줌
+    return { base: total(lBase, false), buffed: total(lBuffed, true), cls: isPhys ? 'physical' : 'special' };
   }
 
   /**

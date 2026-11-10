@@ -8,8 +8,8 @@
  * 본 파일이 NUO_CALC_RESULT 로 응답한다. 프로토콜 유지.
  */
 (function () {
-  if (window.__NUO_CALC_BRIDGE_V41__) return;
-  window.__NUO_CALC_BRIDGE_V41__ = true;
+  if (window.__NUO_CALC_BRIDGE_V42__) return;
+  window.__NUO_CALC_BRIDGE_V42__ = true;
 
   var KEY_POKE_LIST = '$spokemon_list';
   var KEY_ATT = '$scalculator.attacker';
@@ -424,7 +424,10 @@
 
     if (pd.level != null && pd.level > 0) def.level = pd.level | 0;
 
-    var dp = page === 'speed' ? pd.personality : pd.defenderPersonality;
+    // 성격 배율도 SP 와 같은 physInc 기준으로 고름 (SW 는 물리/특수 양쪽을 보냄 — calcPayload.finalizePair)
+    var dp = page === 'speed'
+      ? pd.personality
+      : (physInc ? pd.defenderPersonalityPhys : pd.defenderPersonalitySpec);
     if (dp === 0.9 || dp === 1 || dp === 1.1) def.personality = dp;
 
     var dexSideDef = page === 'speed' ? 'speed' : true;

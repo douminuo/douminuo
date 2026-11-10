@@ -57,6 +57,11 @@ assert(row[0].buffed === wantTough, 'tough claws buffed: got ' + row[0].buffed +
 assert(row[0].base === row[0].buffed, 'tough claws base equals buffed');
 assert(row[0].cls === 'physical', 'fire punch cls is physical');
 
+// 포톤가이저: 공격 > 특공이면 물리로 계산 → cls 도 physical (요약의 실능치 가림이 이걸 봄)
+const photon = { name: 'Photon Geyser', power: '100', damage_class: 'special', type: 'Psychic' };
+const pg = cmp({ pokemon: { moves: [photon], stats: { attack: { real: 180 }, special_attack: { real: 133 } } } }, ['psychic']);
+assert(pg[0].cls === 'physical', 'photon geyser atk>spa cls: got ' + pg[0].cls);
+
 const sheer = cmp(Object.assign({}, slot, { ability: { name: 'Sheer Force' } }), ['fire']);
 const wantSheer = Math.floor(Math.floor(75 * 1.3) * 100 * 1.5);
 assert(sheer[0].buffed === wantSheer, 'sheer force buffed');

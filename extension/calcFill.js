@@ -114,7 +114,7 @@
         },
         function (bg) {
           if (chrome.runtime.lastError) {
-            reject(new Error(mapErr(chrome.runtime.lastError.message)));
+            reject(new Error(mapErr('')));
             return;
           }
           if (!bg || !bg.ok) {
@@ -235,7 +235,7 @@
 
     // 오류 = 사이트 계산기 입력 누락 경고와 같은 네이티브 alert (2026-09-24 실측)
     function alertErr(err) {
-      window.alert((err && err.message) || mapErr(''));
+      window.alert(mapErr(err && err.message));
     }
 
     function render() {
@@ -308,7 +308,7 @@
           if (!side) return; // 취소 = 박스로 돌아감
           box.close();
           orchestrateCalcFillFromSlot(item.slot, side).catch(function (err) {
-            window.alert((err && err.message) || mapErr(''));
+            window.alert(mapErr(err && err.message));
           });
         });
       }
