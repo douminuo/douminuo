@@ -266,18 +266,18 @@ importScripts('showdownPaste.js');
       body: body,
     })
       .then(function (res) {
-        if (!res.ok) return '';
+        if (!res.ok) return null;
         return res.json();
       })
       .then(function (j) {
-        if (!j) return '';
-        var sid = j.id != null ? j.id : j.data && j.data.id;
-        if (!sid) return '';
+        var sid = j && (j.id != null ? j.id : j.data && j.data.id);
+        if (!sid) throw new Error('slot_share_failed');
         shareIdMemo[mk] = sid;
         return origin + (pathname || '/') + '#ps=' + sid;
       })
+      // 링크가 빠진 채 "복사 완료"가 뜨지 않게 실패로 올림 — 파티 POST 실패와 같은 처리.
       .catch(function () {
-        return '';
+        throw new Error('slot_share_failed');
       });
   }
 
@@ -472,6 +472,7 @@ importScripts('showdownPaste.js');
     empty_party: '비어 있는 파티입니다. 포켓몬을 넣은 뒤 다시 시도하세요.',
     team_slots_unavailable: '팀 슬롯(6칸)을 읽지 못했습니다. 페이지를 새로고침한 뒤 다시 시도하세요.',
     party_resolve_empty: '파티를 등록했지만 변환용 데이터를 받지 못했습니다. 잠시 후 다시 시도해 주세요.',
+    slot_share_failed: '샘플 URL을 서버에 등록하지 못했습니다. 로그인·네트워크를 확인하세요.',
   };
 
   function mapShareError(err) {

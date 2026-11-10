@@ -57,17 +57,13 @@
   }
 
   /**
-   * 비-HP 실수치 (포켓몬 챔피언스 신공식, 스마트누오/본 확장과 동일):
-   *   base = floor((floor((2*BS + IV) * L/100) + 5) * natureMul)
-   *   real = base + floor(EV * natureMul)
-   * 노력치 1당 실수치 1(중립 성격), 보정 성격에서는 EV 항에도 nature 적용 후 floor.
-   * 구형 `floor(EV/4)` 합산 공식이 아님에 유의.
+   * 비-HP 실수치 (포켓몬 챔피언스, 스마트누오 표시식 — SMARTNUO_RE_PLAN §2):
+   *   real = floor((floor((2*BS + IV) * L/100) + 5 + SP) * natureMul)
+   * SP 를 더한 뒤 성격을 곱함 (따로 곱해 더하면 Lv50 이 아닐 때 1 어긋남). 구형 `floor(EV/4)` 식 아님.
    */
   function computeRealNonHp(baseStat, iv, ev, level, natureMul) {
     var inner = Math.floor(((2 * baseStat + iv) * level) / 100);
-    var base = Math.floor((inner + 5) * natureMul);
-    var evGain = Math.floor(ev * natureMul);
-    return base + evGain;
+    return Math.floor((inner + 5 + ev) * natureMul);
   }
 
   function natureMulFor(natureKo, statKey, natureKoDoc, natureStatMulDoc) {

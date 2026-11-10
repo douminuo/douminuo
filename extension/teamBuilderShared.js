@@ -215,6 +215,7 @@
 
   /** SPA 라우트 전환에 살아남는 isolated-world 변수. 풀 리로드 시 자연 소멸. */
   var _hot = null;
+  var _hotSig = null;
 
   /**
    * Hot snapshot + 영속 캐시 동시 갱신.
@@ -227,6 +228,11 @@
     var slots = Array.isArray(payload.slots) ? payload.slots.slice(0, 6) : null;
     if (!slots || slots.length === 0) return;
     var slotArt = Array.isArray(payload.slotArt) ? payload.slotArt.slice(0, 6) : [];
+    // Fill·InlineAnnot 가 같은 갱신마다 둘 다 부름 → 내용이 같으면 storage 쓰기 생략
+    var sig;
+    try { sig = JSON.stringify([slots, slotArt]); } catch (eSig) { sig = null; }
+    if (sig && sig === _hotSig) return;
+    _hotSig = sig;
     var snap = {
       slots: slots,
       slotArt: slotArt,
@@ -315,7 +321,8 @@
 
   function tbMoRecordsTouchSlotList(records) {
     var root = getTbSlotListRoot();
-    if (!root) return true;
+    // 컨테이너 mount 전 폴백은 파티 페이지에서만 — 계산기·도감에선 DOM 변경마다 갱신 돌던 것 방지 (라우트 전환은 onRouteChange 가 따로 처리)
+    if (!root) return !!(CS.isTeamBuilderRoute && CS.isTeamBuilderRoute());
     if (!records || !records.length) return false;
     var i;
     for (i = 0; i < records.length; i++) {
