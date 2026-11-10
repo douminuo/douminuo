@@ -13,6 +13,7 @@ const { loadSW, F } = require('./lib/swHarness');
 const EXT = path.join(__dirname, '..', 'extension');
 const ORIGIN = 'https://smartnuo.com';
 const SLOT_FAIL = '샘플 URL을 서버에 등록하지 못했습니다. 로그인·네트워크를 확인하세요.';
+const PARTY_FAIL = '파티 URL을 서버에 등록하지 못했습니다. 로그인·네트워크를 확인하세요.';
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -89,6 +90,32 @@ async function run() {
   const retried = sharePosts(sw).slice(before);
   // 파티·슬롯 1 = 메모, 슬롯 2 = 실패분, 슬롯 4 = 지난번엔 안 나감
   assert(r.ok && retried.length === 2 && retried[0] === sharePosts(sw)[2], 'retry = failed + unsent only: ' + JSON.stringify(retried));
+
+  // --- 파티 쪽 실패 (원인 셋) — 영문 원문·GET 시절 "불러오지 못했습니다" 없이 ---
+  for (const mode of ['http', 'noid', 'net']) {
+    sw = loadSW(EXT);
+    sw.failShare = (body) => (body.indexOf('"all":true') !== -1 ? mode : undefined);
+    r = await copyParty(sw, PARTY);
+    assert(!r.ok && r.error === PARTY_FAIL && r.text === undefined, 'party fail ' + mode + ': ' + JSON.stringify(r));
+    assert(sharePosts(sw).length === 1, 'party fail stops before slots: ' + sharePosts(sw).length);
+  }
+
+  // --- 진행 중 공유: 기다리지 않고 연달아 두 번 = POST 1회 ---
+  sw = loadSW(EXT);
+  let both = await Promise.all([copySlot(sw, F.azumarill), copySlot(sw, F.azumarill)]);
+  assert(both[0].ok && both[1].ok && sharePosts(sw).length === 1, 'in-flight shared: ' + sharePosts(sw).length);
+  // 슬롯 복사 직후 파티 복사 — 같은 칸 번호·본문이면 슬롯 POST 공유
+  sw = loadSW(EXT);
+  both = await Promise.all([copySlot(sw, F.azumarill, {}, 2), copyParty(sw, PARTY)]);
+  assert(both[0].ok && both[1].ok && sharePosts(sw).length === 4, 'slot + party in flight = 1 + 3: ' + sharePosts(sw).length);
+  // 진행 중이던 요청이 실패 → 둘 다 실패, 메모에서 빠져 다음 복사가 다시 보냄
+  sw = loadSW(EXT);
+  sw.failShare = () => 'net';
+  both = await Promise.all([copySlot(sw, F.azumarill), copySlot(sw, F.azumarill)]);
+  assert(!both[0].ok && !both[1].ok && sharePosts(sw).length === 1, 'in-flight fail shared: ' + sharePosts(sw).length);
+  sw.failShare = null;
+  r = await copySlot(sw, F.azumarill);
+  assert(r.ok && sharePosts(sw).length === 2, 'retry after in-flight fail: ' + sharePosts(sw).length);
 
   console.log('smoke-share: ok');
 }

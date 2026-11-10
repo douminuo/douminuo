@@ -1,14 +1,9 @@
 /**
- * 스마트누오 공유 URL·응답 해석 (`#ps=` id, GET /api/party/share/:id 응답 모양).
+ * 스마트누오 공유 응답 해석 (GET /api/party/share/:id 응답 모양). 등록(POST) = background.js 공유 등록 구역.
  * 요약 텍스트 조립은 formatter.formatSlotsText (슬롯에서 바로).
  */
 (function (global) {
   'use strict';
-
-  function extractPsId(s) {
-    var m = String(s).match(/[#&?]ps=([^&#'"\s]+)/i);
-    return m ? m[1].trim() : null;
-  }
 
   function unwrapShareJson(j) {
     if (!j) throw new Error('empty_response');
@@ -87,6 +82,5 @@
 
   global.shareToRaw = {
     classifyShareGetResponse: classifyShareGetResponse,
-    extractPsId: extractPsId,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);

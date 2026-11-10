@@ -9,13 +9,12 @@ importScripts('attackerFormOverride.js');
 importScripts('showdownPaste.js');
 
 /**
- * GET /api/party/share/:id → 파티(6슬롯) 또는 단일 샘플.
- * 통합 입력: 한 줄(자동 판별) / 여러 줄(각각 단일 샘플만).
+ * 서비스 워커 — 팀빌더·계산기 콘텐츠 스크립트 메시지 처리 (요약·Showdown 복사, 결정력·내구력 주석,
+ * 계산기 자동입력 페이로드). 스마트누오 호출 = 공유 등록 구역 한 곳.
  */
 (function () {
   'use strict';
 
-  var SR = globalThis.shareToRaw;
   var SL = globalThis.nuoSlotRead;
   var SMP = globalThis.simpleMovePower;
   var AFO = globalThis.attackerFormOverride;
@@ -160,125 +159,95 @@ importScripts('showdownPaste.js');
     return origin + p + '#ps=' + id;
   }
 
+  // ── 공유 등록 (POST /api/party/share) ────────────────────────────────────
   /**
-   * 결과 텍스트에 누오 URL이 들어가는 옵션인지 (어머니 사이트 보호 §A.2 #1).
-   * - includeUrls === false: 사용자가 URL 출력 끔 → 슬롯·파티 URL 둘 다 안 들어감
-   * - showdownPaste === true: PokePaste 출력은 URL을 포함하지 않음
-   * → 둘 중 하나라도 해당되면 누오 POST를 보낼 이유가 없다.
+   * 스마트누오 공유 등록과 호출 수 규칙은 이 구역 한 곳 (CLAUDE §4 어머니 사이트 보호). 핸들러는 URL만 받는다.
+   * - 0회: 결과에 URL이 안 들어가는 옵션 (includeUrls === false, Showdown), 빈 칸.
+   * - 슬롯 복사 = 1회, 파티 복사 = 파티 1 + 채운 칸 수 (파티 먼저, 칸은 순서대로).
+   * - 같은 origin·본문 = SW 수명 1회: 진행 중 요청도 공유, 실패하면 메모에서 빼서 다음 복사가 다시 보냄.
+   * - 실패 = 원인(HTTP 오류·id 없는 응답·네트워크) 상관없이 슬롯 slot_share_failed / 파티 party_share_failed.
+   *   하나라도 실패하면 복사 전체 실패 (링크 빠진 "복사 완료" 없음). 다시 누르면 메모 덕에 성공 못 한 것만 나감.
+   * 본문 = 사이트 현행 (2026-10 번들 BFJqrx6L — 옛 2026-04 캡처는 { params: { data } } 래핑):
+   *   파티 { data: { all: true, data: 6칸(빈칸 null) } }, 슬롯 { data: { slot, data } }. 응답 { id } → #ps=.
+   * shortcut: 파티 복사 도중 실패해도 먼저 성공한 등록은 서버에 남음, 메모는 크기 제한 없음 — SW 수명이 짧아 그대로.
    */
+  var shareMemo = Object.create(null);
+
   function needsServerUrls(fo) {
-    if (!fo) return true;
-    if (fo.includeUrls === false) return false;
-    if (fo.showdownPaste) return false;
-    return true;
+    return fo.includeUrls !== false && !fo.showdownPaste;
   }
 
-  /**
-   * 파티 전체: POST /api/party/share (동일 path), 본문 { data: { all: true, data: (6칸, 빈칸 null) } }.
-   * 응답 { id } → #ps= (단일 슬롯과 동일). 단일 슬롯: { data: { slot, data } }.
-   * 사이트 현행 본문과 동일 (2026-10 번들 BFJqrx6L — 옛 2026-04 캡처는 { params: { data } } 래핑).
-   */
-  /**
-   * 공유 등록 메모: origin + 요청 본문 → 응답 id. 같은 내용 재복사 = POST 없이 같은 링크
-   * (CLAUDE §4 "동일 입력 동일 호출 = SW 라이프타임 1회"). 성공한 것만 저장 — 실패는 다음 복사에서 재시도.
-   */
-  var shareIdMemo = Object.create(null);
+  /** @returns {Promise<string>} 표시 URL. */
+  function postShare(origin, pathname, body, failCode) {
+    var mk = origin + '\n' + body;
+    if (!shareMemo[mk]) {
+      shareMemo[mk] = fetch(origin + '/api/party/share', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        credentials: 'include',
+        body: body,
+      })
+        .then(function (res) {
+          return res.ok ? res.json() : null;
+        })
+        .then(function (j) {
+          var sid = j && (j.id != null ? j.id : j.data && j.data.id);
+          if (!sid) throw new Error(failCode);
+          return sid;
+        })
+        .catch(function () {
+          delete shareMemo[mk];
+          throw new Error(failCode);
+        });
+    }
+    return shareMemo[mk].then(function (sid) {
+      return buildDisplayPartyUrl(origin, pathname, sid);
+    });
+  }
 
-  function postSharePartyAll(origin, pathname, slotsSix) {
-    if (!Array.isArray(slotsSix) || slotsSix.length !== 6) {
-      return Promise.reject(new Error('bad_party_slots'));
-    }
-    var row = [];
-    var anyFilled = false;
-    var i;
-    for (i = 0; i < 6; i++) {
-      var s = slotsSix[i];
-      if (SL.isEmpty(s)) {
-        row.push(null);
-      } else {
-        anyFilled = true;
-        try {
-          row.push(JSON.parse(JSON.stringify(s)));
-        } catch (e) {
-          row.push(s);
-        }
-      }
-    }
-    if (!anyFilled) {
-      return Promise.reject(new Error('empty_party'));
-    }
+  /** 빈 칸 = '' (호출 없음). 빈 판정 = SL.isEmpty (pokemon.name 없는 메타-only 칸 포함). */
+  function shareSlot(origin, pathname, slotIndex1Based, slotData) {
+    if (SL.isEmpty(slotData)) return Promise.resolve('');
+    var body = JSON.stringify({ data: { slot: slotIndex1Based, data: slotData } });
+    return postShare(origin, pathname, body, 'slot_share_failed');
+  }
+
+  /** 슬롯 복사용 URL. 저장 샘플 복사는 칸 번호가 없어 호출자가 1을 넘김. */
+  function shareUrlsForSlot(origin, pathname, fo, slotIndex1Based, slotData) {
+    if (!needsServerUrls(fo)) return Promise.resolve({ partyUrl: '', sampleUrls: [''] });
+    return shareSlot(origin, pathname, slotIndex1Based, slotData).then(function (u) {
+      return { partyUrl: '', sampleUrls: [u] };
+    });
+  }
+
+  /** 파티 복사용 URL. slots6 = 6칸 (빈 파티는 핸들러가 먼저 거름). */
+  function shareUrlsForParty(origin, pathname, fo, slots6) {
+    if (!needsServerUrls(fo)) return Promise.resolve({ partyUrl: '', sampleUrls: ['', '', '', '', '', ''] });
     var body = JSON.stringify({
       data: {
         all: true,
-        data: row,
+        data: slots6.map(function (s) {
+          return SL.isEmpty(s) ? null : s;
+        }),
       },
     });
-    var mk = origin + '\n' + body;
-    if (shareIdMemo[mk]) return Promise.resolve(buildDisplayPartyUrl(origin, pathname, shareIdMemo[mk]));
-    return fetch(origin + '/api/party/share', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      credentials: 'include',
-      body: body,
-    }).then(function (res) {
-      return res.text().then(function (t) {
-        var j = null;
-        try {
-          j = t ? JSON.parse(t) : null;
-        } catch (e) {
-          j = null;
-        }
-        if (!res.ok) {
-          var hint =
-            j && (j.message || j.error)
-              ? String(j.message || j.error).slice(0, 120)
-              : (t || '').slice(0, 100);
-          throw new Error('party_share_post_' + res.status + (hint ? ': ' + hint : ''));
-        }
-        if (!j) throw new Error('empty_response');
-        var sid = j.id != null ? j.id : j.data && j.data.id;
-        if (!sid) throw new Error('empty_response');
-        shareIdMemo[mk] = sid;
-        return buildDisplayPartyUrl(origin, pathname, sid);
+    var out = { partyUrl: '', sampleUrls: [] };
+    var chain = postShare(origin, pathname, body, 'party_share_failed').then(function (u) {
+      out.partyUrl = u;
+    });
+    slots6.forEach(function (slotData, idx) {
+      chain = chain.then(function () {
+        return shareSlot(origin, pathname, idx + 1, slotData).then(function (u) {
+          out.sampleUrls.push(u);
+        });
       });
     });
-  }
-
-  function postShareSlot(origin, pathname, slotIndex1Based, slotData) {
-    // 빈/무효 슬롯은 어떤 누오 호출도 가지 않는다 (어머니 사이트 보호 원칙 §A.2 #3).
-    // 단순 null 또는 {}만이 아니라 pokemon.name 없는 메타-only 칸도 SL.isEmpty 가 잡는다.
-    if (SL.isEmpty(slotData)) return Promise.resolve('');
-    var body = JSON.stringify({
-      data: { slot: slotIndex1Based, data: slotData },
+    return chain.then(function () {
+      return out;
     });
-    var mk = origin + '\n' + body;
-    if (shareIdMemo[mk]) return Promise.resolve(origin + (pathname || '/') + '#ps=' + shareIdMemo[mk]);
-    return fetch(origin + '/api/party/share', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-      },
-      credentials: 'include',
-      body: body,
-    })
-      .then(function (res) {
-        if (!res.ok) return null;
-        return res.json();
-      })
-      .then(function (j) {
-        var sid = j && (j.id != null ? j.id : j.data && j.data.id);
-        if (!sid) throw new Error('slot_share_failed');
-        shareIdMemo[mk] = sid;
-        return origin + (pathname || '/') + '#ps=' + sid;
-      })
-      // 링크가 빠진 채 "복사 완료"가 뜨지 않게 실패로 올림 — 파티 POST 실패와 같은 처리.
-      .catch(function () {
-        throw new Error('slot_share_failed');
-      });
   }
 
   /** slug → 타입 Promise. 같은 종 = SW 라이프타임 1회 (TEMPLATES §10.4). 404 의 [] 도 저장, 네트워크 실패만 다음에 재시도. */
@@ -419,12 +388,6 @@ importScripts('showdownPaste.js');
     });
   }
 
-  function normalizeSlotsToSix(slots) {
-    var s = Array.isArray(slots) ? slots.slice(0, 6) : [];
-    while (s.length < 6) s.push({});
-    return s;
-  }
-
   function cloneShareSlot(slot) {
     try {
       return JSON.parse(JSON.stringify(slot));
@@ -434,53 +397,22 @@ importScripts('showdownPaste.js');
   }
 
   /**
-   * 슬롯별 공유 URL — 순서대로 POST (빈 칸은 postShareSlot 이 '' 반환).
-   * @param {boolean} include false 면 POST 없이 전부 '' (F16).
-   */
-  function collectSlotUrls(origin, pathname, slots6, include) {
-    var urls = [];
-    var chain = Promise.resolve();
-    slots6.forEach(function (slotData, idx) {
-      chain = chain.then(function () {
-        if (!include) {
-          urls.push('');
-          return;
-        }
-        return postShareSlot(origin, pathname, idx + 1, slotData).then(function (u) {
-          urls.push(u || '');
-        });
-      });
-    });
-    return chain.then(function () {
-      return urls;
-    });
-  }
-
-  /**
-   * F14: 옛 if-체인을 dict lookup 으로. alias 키들은 같은 메시지를 명시적으로 매핑.
+   * F14: 옛 if-체인을 dict lookup 으로. share_not_found·empty_response·unknown_share_shape =
+   * classifyShareGetResponse (사용자 결정으로 유지) 가 던지는 코드.
    */
   var SHARE_ERR_MSG = {
-    empty: 'URL을 입력해 주세요.',
-    empty_input: 'URL을 입력해 주세요.',
-    no_party_url: 'URL 형식을 확인해 주세요.',
-    bad_url: 'URL 형식을 확인해 주세요.',
-    no_ps_id: '#ps= 가 포함된 스마트누오 공유 URL인지 확인해 주세요.',
     share_not_found: '공유를 불러오지 못했습니다. URL·로그인·네트워크를 확인하세요.',
     empty_response: '공유를 불러오지 못했습니다. URL·로그인·네트워크를 확인하세요.',
     unknown_share_shape: '지원하지 않는 공유 형식입니다.',
-    bad_party_slots: '파티 슬롯 형식이 올바르지 않습니다.',
     empty_party: '비어 있는 파티입니다. 포켓몬을 넣은 뒤 다시 시도하세요.',
     team_slots_unavailable: '팀 슬롯(6칸)을 읽지 못했습니다. 페이지를 새로고침한 뒤 다시 시도하세요.',
-    party_resolve_empty: '파티를 등록했지만 변환용 데이터를 받지 못했습니다. 잠시 후 다시 시도해 주세요.',
     slot_share_failed: '샘플 URL을 서버에 등록하지 못했습니다. 로그인·네트워크를 확인하세요.',
+    party_share_failed: '파티 URL을 서버에 등록하지 못했습니다. 로그인·네트워크를 확인하세요.',
   };
 
   function mapShareError(err) {
     var m = err && err.message ? String(err.message) : String(err);
     if (Object.prototype.hasOwnProperty.call(SHARE_ERR_MSG, m)) return SHARE_ERR_MSG[m];
-    if (m.indexOf('party_share_post_') === 0) {
-      return '파티 URL을 서버에 등록하지 못했습니다. 로그인·네트워크를 확인하세요.';
-    }
     return m;
   }
 
@@ -521,12 +453,7 @@ importScripts('showdownPaste.js');
       return Promise.reject(new Error('empty_slot'));
     }
 
-    // F16: URL이 결과에 안 들어가는 옵션이면 누오 POST 생략.
-    var pSampleUrl = needsServerUrls(fo)
-      ? postShareSlot(origin, pathname, slotIndex, slotData)
-      : Promise.resolve('');
-    return pSampleUrl.then(function (sampleUrl) {
-      var urls = { partyUrl: '', sampleUrls: [sampleUrl ? String(sampleUrl).trim() : ''] };
+    return shareUrlsForSlot(origin, pathname, fo, slotIndex, slotData).then(function (urls) {
       return formatSlotsForCopy([slotData], fo, urls, false);
     });
   }
@@ -757,29 +684,10 @@ importScripts('showdownPaste.js');
       }
 
       var foCp = msg.formatOptions || {};
-      var needUrlsCp = needsServerUrls(foCp);
-
-      // F16/F17: 결과 텍스트에 URL이 들어가지 않는 옵션이면 누오 등록 자체를 생략.
-      // 들어가는 옵션이라도, 등록 후 GET 으로 다시 받아오는 단계는 생략 — 우리가
-      // teamBuilderBridge 에서 받은 로컬 slotsCp 를 source of truth 로 사용.
-      var pPartyUrlCp = needUrlsCp
-        ? postSharePartyAll(originCp, pathnameCp, slotsCp)
-        : Promise.resolve('');
-
-      pPartyUrlCp
-        .then(function (partyUrl) {
-          var partyId = '';
-          if (partyUrl) {
-            partyId = SR.extractPsId(partyUrl) || '';
-            if (!partyId) {
-              return Promise.reject(new Error('party_resolve_empty'));
-            }
-          }
-          var displayParty = partyId ? buildDisplayPartyUrl(originCp, pathnameCp, partyId) : '';
-          var slots6 = normalizeSlotsToSix(slotsCp);
-          return collectSlotUrls(originCp, pathnameCp, slots6, needUrlsCp).then(function (urls) {
-            return formatSlotsForCopy(slots6, foCp, { partyUrl: displayParty, sampleUrls: urls }, true);
-          });
+      // F17: 등록 후 GET 으로 다시 받아오지 않음 — teamBuilderBridge 에서 받은 slotsCp 가 source of truth.
+      shareUrlsForParty(originCp, pathnameCp, foCp, slotsCp)
+        .then(function (urls) {
+          return formatSlotsForCopy(slotsCp, foCp, urls, true);
         })
         .then(function (text) {
           sendResponse({ ok: true, text: text != null ? String(text) : '' });
