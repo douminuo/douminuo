@@ -109,6 +109,32 @@ const F = {
     stats: stats([0, 0, 0, 32, 0, 32], [125, 65, 85, 152, 140, 142]),
     moves: [mv('psychic', 'Psychic', '사이코키네시스', 'Psychic', '에스퍼', 90, 'Special'), EMPTY_MV, EMPTY_MV, EMPTY_MV],
   }),
+  // 기술 칸 모양 (2026-11-10 실측, CALC_MOVE_PICK_PLAN §4): 위력 변동 = power 0 + 분류 있음, 글자만 친 기술 = 문자열 name·분류 ''.
+  variable_only: slot(3, {
+    name: { id: 'aegislash', db_en: 'aegislash-shield', smogon_id: 'aegislash', name: 'Aegislash', kr: '킬가르도', types: ['Steel', 'Ghost'] },
+    name_kr: '킬가르도', sprite: '', first_type: 'steel', second_type: 'ghost',
+    ability: '배틀스위치', personality: { name: '용감', up: '공격', down: '스피드', display: '용감' },
+    stats: stats([32, 32, 0, 0, 2, 0], [167, 112, 170, 70, 151, 58]),
+    moves: [mv('kingsshield', "King's Shield", '킹실드', 'Steel', '강철', 0, 'Status'), mv('gyroball', 'Gyro Ball', '자이로볼', 'Steel', '강철', 0, 'Physical'), EMPTY_MV, EMPTY_MV],
+  }),
+  text_only: slot(2, {
+    name: { id: 'azumarill', db_en: 'azumarill', smogon_id: 'azumarill', name: 'Azumarill', kr: '마릴리', types: ['Water', 'Fairy'] },
+    name_kr: '마릴리', sprite: '', first_type: 'water', second_type: 'fairy',
+    stats: stats([32, 32, 0, 0, 2, 0], [207, 112, 100, 72, 101, 70]),
+    moves: [{ name: '사이코쇼크', name_kr: '', type: '', power: 0, damage_class: '' }, EMPTY_MV, EMPTY_MV, EMPTY_MV],
+  }),
+  status_only: slot(5, {
+    name: { id: 'mrmime', db_en: 'mr-mime', smogon_id: 'mrmime', name: 'Mr. Mime', kr: '마임맨', types: ['Psychic', 'Fairy'] },
+    name_kr: '마임맨', sprite: '', first_type: 'psychic', second_type: 'fairy',
+    stats: stats([0, 0, 0, 32, 0, 32], [125, 65, 85, 152, 140, 142]),
+    moves: [mv('reflect', 'Reflect', '리플렉터', 'Psychic', '에스퍼', 0, 'Status'), mv('lightscreen', 'Light Screen', '빛의장막', 'Psychic', '에스퍼', 0, 'Status'), EMPTY_MV, EMPTY_MV],
+  }),
+  text_then_variable: slot(1, {
+    name: { id: 'nidoking', db_en: 'nidoking', smogon_id: 'nidoking', name: 'Nidoking', kr: '니드킹', types: ['Poison', 'Ground'] },
+    name_kr: '니드킹', sprite: '', first_type: 'poison', second_type: 'ground',
+    stats: stats([0, 0, 0, 32, 0, 32], [156, 112, 97, 137, 95, 137]),
+    moves: [{ name: '지진', name_kr: '', type: '', power: 0, damage_class: '' }, mv('grassknot', 'Grass Knot', '풀묶기', 'Grass', '풀', 0, 'Special'), EMPTY_MV, EMPTY_MV],
+  }),
   empty_obj: {},
   empty_null: null,
   meta_only: { slot_display: '#5', sample_name: '', sp_used: 0, sp_total: 66, pokemon: { name: '', name_kr: '', moves: [] } },
