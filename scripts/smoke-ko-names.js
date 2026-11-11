@@ -78,4 +78,26 @@ assert(/@ Raichunite X/.test(outMoves) && /- Earthquake/.test(outMoves) && /- Dr
 const outSd = paste({ pokemon: { name: { db_en: 'indeedee-female', name: 'Indeedee-F', kr: '에써르' }, moves: [] } });
 assert(outSd.indexOf('Indeedee-F') === 0, 'Showdown 종 이름: ' + outSd);
 
+// --- 회귀 점검 (CHANGELOG 버그 수정, 2026-11-10) ---
+// 2.0.1 Showdown 노력치 = 챔스 SP 그대로 (showdownPaste.js §4.3 — Showdown champions 모드 EVs 줄 = SP, 2026-10-23 확인).
+const spStats = {};
+['hp', 'attack', 'defense', 'special_attack', 'special_defense', 'speed'].forEach((k, i) => { spStats[k] = { value: [2, 32, 0, 0, 0, 32][i] }; });
+const outEv = paste({ pokemon: { name: 'garchomp', stats: spStats, moves: [] } });
+assert(outEv.split('\n').indexOf('EVs: 2 HP / 32 Atk / 32 Spe') !== -1, 'Showdown EVs = SP: ' + outEv);
+
+// moveTags.json 은 generate-move-tags.js 재생성물 — 챔스 보정이 빠지면 여기서 잡힘. 기술 id 는 한글 → koNames.
+// 2.0.1 번개엄니·얼음엄니·불꽃엄니·3연화살 = 우격다짐 대상 (게임 규칙: 부가효과 있음), 2.0.0 드래곤옐 = 소리, 프리즈드라이 = 우격다짐 제외 (챔스 변경).
+const MT = readExt('moveTags.json').moves;
+for (const ko of ['번개엄니', '얼음엄니', '불꽃엄니', '3연화살']) assert(MT[N.move(ko)] && MT[N.move(ko)].sheerForceEligible === true, ko + ' 우격다짐: ' + N.move(ko));
+assert(MT[N.move('드래곤옐')] && MT[N.move('드래곤옐')].sound === true, '드래곤옐 소리');
+assert(MT[N.move('프리즈드라이')] && !MT[N.move('프리즈드라이')].sheerForceEligible, '프리즈드라이 우격다짐 제외');
+
+// 1.5.0 보르그 표기: 스피드표 임베드 데이터에 '보르그' 있고 옛 표기 '보르쥐' 없음.
+const rs = { globalThis: null };
+rs.globalThis = rs;
+vm.createContext(rs);
+vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'extension', 'regulationSpeedData.js'), 'utf8'), rs);
+const rsText = JSON.stringify(rs.NUO_REGULATION_SPEED);
+assert(rsText.indexOf('보르그') !== -1 && rsText.indexOf('보르쥐') === -1, '보르그 표기');
+
 console.log('smoke-ko-names: ok');

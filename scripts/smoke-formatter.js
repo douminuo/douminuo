@@ -99,6 +99,17 @@ assert(mpOther.physBuffed === mpOther.physBase, '금속파우더 다른 종 = �
 // 샘플 이름에 종명이 들어가도 판정은 실제 종 기준.
 const mpTitle = bulkOf(r97({ item: '금속파우더', species: '피카츄', sample: '메타몽 카운터' }));
 assert(mpTitle.physBuffed === mpTitle.physBase, '금속파우더 샘플 이름에 메타몽 = 효과 없음');
+// 회귀 점검 2.0.1 심해의비늘 (2026-11-10): 게임 규칙 = 진주몽 특방 ×2, 다른 종 효과 없음.
+assert(bulkOf(r97({ item: '심해의비늘', species: '진주몽' })).specBuffed === Math.floor((100 * 194) / 0.411), '심해의비늘 진주몽 특방 ×2');
+const dssOther = bulkOf(r97({ item: '심해의비늘', species: '피카츄' }));
+assert(dssOther.specBuffed === dssOther.specBase && dssOther.specBase === Math.floor((100 * 97) / 0.411), '심해의비늘 다른 종 = 효과 없음');
+// 회귀 점검 1.4.0 (사용자 결정): 인라인 내구력 = 멀티스케일·스펙터가드 제외, 복사(bulkOf) = 물리·특수 최종 ×2.
+['멀티스케일', '스펙터가드'].forEach((ab) => {
+  const inl = inlineOf(r97({ ability: ab }));
+  assert(inl.physBuffed === inl.physBase && inl.specBuffed === inl.specBase, ab + ' 인라인 제외: ' + JSON.stringify(inl));
+  const cp = bulkOf(r97({ ability: ab }));
+  assert(cp.physBuffed === Math.floor((100 * 97 * 2) / 0.411) && cp.specBuffed === cp.physBuffed, ab + ' 복사 ×2: ' + JSON.stringify(cp));
+});
 // 탈: 벗겨진 뒤 HP 1/8 잃음 — 복사(버프)만, 인라인 제외.
 const dgSlot = slot({ ability: '탈', reals: [131, 0, 100, 0, 100, 0] });
 const dg = bulkOf(dgSlot);
@@ -115,5 +126,31 @@ assert(dgInline.physBuffed === dgInline.physBase, '탈 인라인 제외: ' + JSO
   assert(q(155 * Math.floor(116 * 1.5)) === 65620 && q(155 * 104) === 39221, '플랜 손계산 값');
   const corner = await sw.send({ type: 'ANNOTATE_BUILDER_SLOT', slotData: F.ogerpon_cornerstone });
   assert(corner.bulkText === '물리내구력:' + q(155 * 104) + ' (' + q(155 * Math.floor(104 * 1.5)) + ')\n특수내구력:' + q(155 * 116), '초상투영 주춧돌: ' + JSON.stringify(corner.bulkText));
+
+  // --- 회귀 점검 (CHANGELOG 버그 수정, 2026-11-10) ---
+  const { slot: siteSlot, stats, mv, EMPTY_MV } = require('./lib/swHarness');
+  // 2.0.2 블레이드폼 실수치 (Lv50 아님) · 1.4.0 블레이드 기준·성격: 킬가르도 Lv100 고집 공격 SP 4.
+  // 손계산 (SMARTNUO_RE_PLAN §2 computeRealNonHp): inner = floor((2×140 + 31) × 100/100) = 311,
+  //   블레이드 공격 = floor((311 + 5 + 4) × 1.1) = 352 (옛 식 floor(316×1.1) + floor(4×1.1) = 347 + 4 = 351 — SP 32 는 두 식 모두 382 라 SP 4).
+  // 아이언헤드 결정력 = floor(80 × 352 × 1.5 자속) = 42240 (옛 식이면 42120).
+  const blade = siteSlot(3, {
+    name: { id: 'aegislash', db_en: 'aegislash-shield', smogon_id: 'aegislash', name: 'Aegislash', kr: '킬가르도', types: ['Steel', 'Ghost'] },
+    name_kr: '킬가르도', sprite: '', first_type: 'steel', second_type: 'ghost', level: 100,
+    ability: '배틀스위치', personality: { name: '고집', up: '공격', down: '특공', display: '고집' },
+    stats: stats([0, 4, 0, 0, 0, 0], [261, 154, 316, 122, 316, 156]),
+    moves: [mv('ironhead', 'Iron Head', '아이언헤드', 'Steel', '강철', 80, 'Physical'), EMPTY_MV, EMPTY_MV, EMPTY_MV],
+  });
+  const bladeAnn = await sw.send({ type: 'ANNOTATE_BUILDER_SLOT', slotData: blade });
+  assert(Math.floor(80 * 352 * 1.5) === 42240 && bladeAnn.movePowerSuffixes[0] === '(42240)', '블레이드 Lv100 고집 결정력: ' + JSON.stringify(bladeAnn.movePowerSuffixes));
+
+  // 2.0.2 포톤가이저가 공격으로 계산될 때 공격 실능치 x: 게임 규칙 = 공격·특공 중 높은 쪽 → 공격 > 특공이면 공격을 씀 → 실능치 줄 공격 칸은 숫자, 특공 칸은 x.
+  const necro = siteSlot(1, {
+    name: { id: 'necrozma', db_en: 'necrozma', smogon_id: 'necrozma', name: 'Necrozma', kr: '네크로즈마', types: ['Psychic'] },
+    name_kr: '네크로즈마', sprite: '', first_type: 'psychic',
+    stats: stats([0, 32, 0, 0, 0, 0], [172, 159, 121, 147, 109, 99]),
+    moves: [mv('photongeyser', 'Photon Geyser', '포톤가이저', 'Psychic', '에스퍼', 100, 'Special'), EMPTY_MV, EMPTY_MV, EMPTY_MV],
+  });
+  const pg = await sw.send({ type: 'FORMAT_BUILDER_SLOT', slotIndex: 1, slotData: necro, origin: 'https://smartnuo.com', pathname: '/party', formatOptions: { includeRealStats: true, includeUrls: false } });
+  assert(pg.ok && pg.text.split('\n').indexOf('172-159-121-x-109-99') !== -1, '포톤가이저 공격 > 특공 실능치: ' + JSON.stringify(pg));
   console.log('smoke-formatter: ok');
 })().catch((e) => { console.error(e); process.exit(1); });

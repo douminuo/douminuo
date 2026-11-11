@@ -397,4 +397,38 @@ assert(plate.base === plate.buffed && plate.base === Math.floor(75 * 100 * (1.5 
 const ss = cmp({ pokemon: { moves: [firePunch], stats: { attack: { real: 101 } } }, ability: '슬로스타트' }, ['normal'])[0];
 assert(ss.base === 75 * 101 && ss.buffed === 75 * 50, '슬로스타트 조건부: ' + JSON.stringify(ss));
 
+// --- 회귀 점검 (CHANGELOG 2.0.1 도구 반영, 2026-11-10) ---
+// 기대값 = 게임 규칙 (배율은 modifiers.json 이 아니라 규칙에서): 굵은뼈 = 탕구리·텅구리 공격 ×2, 심해의이빨 = 진주몽 특공 ×2,
+// 금강옥·백옥·백금옥·마음의물방울 = 디아루가·펄기아·기라티나·라티아스/라티오스의 드래곤 + 각 타입 기술 ×1.2 (최종 d — 사이트 곱 순서 (자속 × 1.2)).
+// 다른 종이면 효과 없음. 실수치 100, 자속 1.5.
+const SPECIES_ITEMS = [
+  // [도구, 맞는 종, 기술, 타입, 맞는 종 기대, 다른 종(피카츄) 기대]
+  ['굵은뼈', '텅구리', { name: 'earthquake', power: '100', damage_class: 'physical', type: 'Ground' }, ['ground'], Math.floor(100 * 200 * 1.5), Math.floor(100 * 100 * 1.5)],
+  ['굵은뼈', '탕구리', { name: 'earthquake', power: '100', damage_class: 'physical', type: 'Ground' }, ['ground'], Math.floor(100 * 200 * 1.5), Math.floor(100 * 100 * 1.5)],
+  ['심해의이빨', '진주몽', { name: 'surf', power: '90', damage_class: 'special', type: 'Water' }, ['water'], Math.floor(90 * 200 * 1.5), Math.floor(90 * 100 * 1.5)],
+];
+const ORBS = [['금강옥', '디아루가', 'Steel'], ['백옥', '펄기아', 'Water'], ['백금옥', '기라티나', 'Ghost'], ['마음의물방울', '라티오스', 'Psychic'], ['마음의물방울', '라티아스', 'Psychic']];
+ORBS.forEach(([item, sp, t2]) => {
+  [{ name: 'dragon-pulse', power: '85', damage_class: 'special', type: 'Dragon' }, { name: 'orb-' + t2, power: '85', damage_class: 'special', type: t2 }].forEach((m) => {
+    SPECIES_ITEMS.push([item, sp, m, ['dragon', t2.toLowerCase()], Math.floor(85 * 100 * (1.5 * 1.2)), Math.floor(85 * 100 * 1.5)]);
+  });
+});
+SPECIES_ITEMS.forEach(([item, sp, m, types, want, wantOther]) => {
+  const got = (nameKr) => cmp({ pokemon: { name_kr: nameKr, moves: [m], stats: stats100 }, equipment: item }, types)[0];
+  const hit = got(sp);
+  assert(hit.base === want && hit.buffed === want, item + ' ' + sp + ' ' + m.type + ': ' + JSON.stringify(hit) + ' want ' + want);
+  const miss = got('피카츄');
+  assert(miss.base === wantOther && miss.buffed === wantOther, item + ' 다른 종 = 효과 없음: ' + JSON.stringify(miss));
+});
+// 하드론엔진: 일렉트릭필드에서 특공 ×4/3 (5461/4096) — 조건부라 buffed 만, 실수치 floor. 비전기 특수기로 필드 기술 보정과 분리.
+const hadron = one({ name: 'dragon-pulse', power: '85', damage_class: 'special', type: 'Dragon' }, 100, '하드론엔진', ['electric', 'dragon']);
+assert(hadron.base === Math.floor(85 * 100 * 1.5) && hadron.buffed === Math.floor(85 * Math.floor(100 * 4 / 3) * 1.5), '하드론엔진: ' + JSON.stringify(hadron));
+// 바위나르기: 바위 기술 ×1.5 (항시). 위력 100 — 위력·실수치 어느 단계에 곱해도 같은 값.
+const payload = one({ name: 'stone-edge', power: '100', damage_class: 'physical', type: 'Rock' }, 100, '바위나르기', ['flying', 'dark']);
+assert(payload.base === 15000 && payload.buffed === 15000, '바위나르기: ' + JSON.stringify(payload));
+assert(one(flareBlitz, 100, '바위나르기', ['flying', 'dark']).buffed === 12000, '바위나르기 비바위 기술 = 효과 없음');
+// 1.4.0 사이코필드 = 1.3배 (9세대 필드 보정, 1.5배 아님): 사이코메이커 + 에스퍼 기술.
+const psySurge = one({ name: 'psychic', power: '90', damage_class: 'special', type: 'Psychic' }, 100, '사이코메이커', ['psychic']);
+assert(psySurge.buffed === Math.floor(90 * 100 * (1.5 * 1.3)), '사이코메이커 필드 1.3: ' + JSON.stringify(psySurge));
+
 console.log('smoke-move-power: ok');

@@ -152,6 +152,44 @@ async function run() {
   r = mountBridge(null)(msg);
   assert(r && r.error === 'nuxt_state_not_found', 'no nuxt code: ' + JSON.stringify(r));
 
+  // --- 회귀 점검 (CHANGELOG 버그 수정, 2026-11-10) ---
+  // 2.0.1 우격다짐·이판사판·연속기 타수: 공격측 move.name(기술 객체)에 부가효과·반동·타수가 실려야 사이트가 보정함.
+  // 기대값 = 게임 규칙: 불꽃엄니 = 화상·풀죽음 부가효과, 플레어드라이브 = 반동기, 고드름침 = 2~5타.
+  const oneMove = (m) => slot(1, {
+    name: { id: 'nidoking', db_en: 'nidoking', smogon_id: 'nidoking', name: 'Nidoking', kr: '니드킹', types: ['Poison', 'Ground'] },
+    name_kr: '니드킹', sprite: '', first_type: 'poison', second_type: 'ground',
+    stats: stats([0, 32, 0, 0, 0, 0], [156, 154, 97, 105, 95, 105]), moves: [m, EMPTY_MV, EMPTY_MV, EMPTY_MV],
+  });
+  r = await atkMove(oneMove(mv('firefang', 'Fire Fang', '불꽃엄니', 'Fire', '불꽃', 65, 'Physical')));
+  assert(r.move.name.id === 'firefang' && r.move.name.secondaries, 'fire fang secondaries: ' + JSON.stringify(r.move.name));
+  r = await atkMove(oneMove(mv('flareblitz', 'Flare Blitz', '플레어드라이브', 'Fire', '불꽃', 120, 'Physical')));
+  assert(r.move.name.id === 'flareblitz' && r.move.name.recoil, 'flare blitz recoil: ' + JSON.stringify(r.move.name));
+  r = await atkMove(oneMove(mv('iciclespear', 'Icicle Spear', '고드름침', 'Ice', '얼음', 25, 'Physical')));
+  assert(JSON.stringify(r.move.name.multihit) === '[2,5]', 'icicle spear multihit: ' + JSON.stringify(r.move.name));
+
+  // 1.4.0 날씨·필드: 공격측 특성의 날씨·필드가 계산기 칸에 {en,kr} 로 (TEMPLATES §6.4). 이름 = 게임 한국어 표기 (모래바람·일렉트릭필드).
+  const sandHippo = JSON.parse(JSON.stringify(hippo));
+  sandHippo.pokemon.ability = '모래날림';
+  r = await fill(sandHippo, 'attacker', 'calc');
+  assert(r.ok && r.side.weather && r.side.weather.kr === '모래바람' && r.side.weather.en === 'Sand', 'sand stream weather: ' + JSON.stringify(r.side && r.side.weather));
+  const surge = JSON.parse(JSON.stringify(F.nidoking));
+  surge.pokemon.ability = '일렉트릭메이커';
+  r = await fill(surge, 'attacker', 'calc');
+  assert(r.ok && r.side.field && r.side.field.kr === '일렉트릭필드' && r.side.field.en === 'Electric Terrain', 'electric surge field: ' + JSON.stringify(r.side && r.side.field));
+
+  // 2.0.2 계산기 오류 문구 영문 코드: SW 응답·bridge·calcFill 이 낼 수 있는 코드마다 mapCalcFillError 가 한글 문구 (원문과 다름).
+  // 기대값 = 매퍼 표 자체. 코드 출처: background GET_CALC_PAYLOADS_FROM_SLOT / calcPayload reject / calcFillBridge error: / calcFill·calcFillShared reject.
+  const shared = { console, setTimeout: () => 0 }; // 로드 시 hydration 폴백 타이머(12초)는 안 돌림
+  shared.globalThis = shared.self = shared.window = shared;
+  vm.createContext(shared);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'extension', 'calcFillShared.js'), 'utf8'), shared);
+  const CODES = ['calc_payload_unavailable', 'empty_slot', 'no_species',
+    'no_valid_payload', 'nuxt_state_not_found', 'calc_dex_not_ready', 'speed_state_not_found', 'vue_calc_not_found',
+    'species_not_in_dex', 'species_not_in_def_dex', 'species_not_in_speed_dex', 'species_not_in_speed_def_dex',
+    'calc_apply_timeout', 'bridge_inject_failed', ''];
+  const unmapped = CODES.filter((c) => { const m = shared.mapCalcFillError(c); return m === c || !/[가-힣]/.test(m); });
+  assert(unmapped.length === 0, 'calc error codes without Korean text: ' + JSON.stringify(unmapped));
+
   // --- 덤프 ---
   const dumpAt = process.argv.indexOf('--dump');
   if (dumpAt !== -1) {
