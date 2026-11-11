@@ -8,7 +8,8 @@ const root = path.join(__dirname, '..');
 const ctx = { globalThis: {}, self: {}, console };
 ctx.globalThis = ctx.self = ctx;
 vm.createContext(ctx);
-for (const f of ['slotRead.js', 'fmtCommon.js', 'formatter.js']) {
+// 내구력은 슬롯 분석 입구(slotAnalysis) 경유 — SW analyzeSlot 과 같은 조립.
+for (const f of ['slotRead.js', 'fmtCommon.js', 'formatter.js', 'simpleMovePower.js', 'attackerFormOverride.js', 'slotAnalysis.js']) {
   vm.runInContext(fs.readFileSync(path.join(root, 'extension', f), 'utf8'), ctx, { filename: f });
 }
 const formatSlotsText = ctx.formatSlotsText;
@@ -32,8 +33,9 @@ function slot(p) {
     },
   };
 }
-const realsOf = (s) => { const o = {}; 'HABCDS'.split('').forEach((L, i) => { o[L] = ctx.nuoSlotRead.stat(s, i).real; }); return o; };
-const bulkOf = (s, types) => ctx.computeBulkPhysSpecBuffed(realsOf(s), koNames, ctx.nuoSlotRead.item(s), ctx.nuoSlotRead.ability(s), '', types || []);
+const analyze = (s, types) => ctx.nuoSlotAnalysis.analyze(s, { names: koNames, moveTags: null, types: types || [] });
+const bulkOf = (s, types) => analyze(s, types).bulk;
+const inlineOf = (s, types) => analyze(s, types).bulkInline;
 const q = (v) => Math.floor(v / 0.411);
 
 // 요약 블록: 순서 = 제목 → 종 @도구 → 성격 / 특성 → SP → 테라 → 내구력 → 기술
@@ -77,30 +79,31 @@ assert(realLine(undefined) === '125-100-50-90-60-80', 'no movePowers');
 assert(realLine([null, null, null, null]) === '125-100-50-90-60-80', 'all-null cells');
 
 // 파동의방호: 조건부(접촉) 물리내구 ×2 — 인라인(excludeConditional)엔 미반영, 복사 경로엔 반영.
-const agReal = { H: 100, B: 100, D: 100 };
-const agAll = ctx.computeBulkPhysSpecBuffed(agReal, koNames, '', '파동의방호', '', []);
+const ag = slot({ ability: '파동의방호', reals: [100, 0, 100, 0, 100, 0] });
+const agAll = bulkOf(ag);
 assert(agAll.physBuffed === Math.floor((100 * 100 * 2) / 0.411) && agAll.specBuffed === agAll.specBase, '파동의방호 물리 ×2 (최종 S): ' + JSON.stringify(agAll));
-const agInline = ctx.computeBulkPhysSpecBuffed(agReal, koNames, '', '파동의방호', '', [], { excludeConditionalAbilities: true });
+const agInline = inlineOf(ag);
 assert(agInline.physBuffed === agInline.physBase, '파동의방호 인라인 제외: ' + JSON.stringify(agInline));
 
 // 사이트 durability: 방어 쪽 배율은 하나씩 floor, 멀티스케일 등(bulkFinal)은 최종 곱.
-const r97 = { H: 100, B: 97, D: 97 };
-const marvelVest = ctx.computeBulkPhysSpecBuffed(r97, koNames, '돌격조끼', '이상한비늘', '', []);
+const r97 = (p) => slot(Object.assign({ reals: [100, 0, 97, 0, 97, 0] }, p));
+const marvelVest = bulkOf(r97({ item: '돌격조끼', ability: '이상한비늘' }));
 assert(marvelVest.physBuffed === Math.floor((100 * Math.floor(97 * 1.5)) / 0.411), '이상한비늘 방어 floor: ' + JSON.stringify(marvelVest));
 assert(marvelVest.specBuffed === Math.floor((100 * Math.floor(97 * 1.5)) / 0.411), '돌격조끼 특방 floor: ' + JSON.stringify(marvelVest));
-const ms = ctx.computeBulkPhysSpecBuffed(r97, koNames, '', '멀티스케일', '', []);
+const ms = bulkOf(r97({ ability: '멀티스케일' }));
 assert(ms.physBuffed === Math.floor((100 * 97 * 2) / 0.411), '멀티스케일 최종 S: ' + JSON.stringify(ms));
-// 종 한정: 금속파우더 = 메타몽만.
-assert(ctx.computeBulkPhysSpecBuffed(r97, koNames, '금속파우더', '', '메타몽', []).physBuffed === Math.floor((100 * 194) / 0.411), '금속파우더 메타몽');
-const mpOther = ctx.computeBulkPhysSpecBuffed(r97, koNames, '금속파우더', '', '피카츄', []);
+// 종 한정: 금속파우더 = 메타몽만 (결정력·내구력 같은 문맥 판정).
+assert(bulkOf(r97({ item: '금속파우더', species: '메타몽' })).physBuffed === Math.floor((100 * 194) / 0.411), '금속파우더 메타몽');
+const mpOther = bulkOf(r97({ item: '금속파우더', species: '피카츄' }));
 assert(mpOther.physBuffed === mpOther.physBase, '금속파우더 다른 종 = 효과 없음');
-// 샘플 제목에 종명이 들어가도 판정은 opts.speciesName (실제 종) 기준.
-const mpTitle = ctx.computeBulkPhysSpecBuffed(r97, koNames, '금속파우더', '', '메타몽 카운터\n피카츄', [], { speciesName: '피카츄' });
-assert(mpTitle.physBuffed === mpTitle.physBase, '금속파우더 제목에 메타몽 = 효과 없음');
+// 샘플 이름에 종명이 들어가도 판정은 실제 종 기준.
+const mpTitle = bulkOf(r97({ item: '금속파우더', species: '피카츄', sample: '메타몽 카운터' }));
+assert(mpTitle.physBuffed === mpTitle.physBase, '금속파우더 샘플 이름에 메타몽 = 효과 없음');
 // 탈: 벗겨진 뒤 HP 1/8 잃음 — 복사(버프)만, 인라인 제외.
-const dg = ctx.computeBulkPhysSpecBuffed({ H: 131, B: 100, D: 100 }, koNames, '', '탈', '', []);
+const dgSlot = slot({ ability: '탈', reals: [131, 0, 100, 0, 100, 0] });
+const dg = bulkOf(dgSlot);
 assert(dg.physBuffed === Math.floor(((131 - 16) * 100) / 0.411) && dg.specBuffed === dg.physBuffed, '탈 HP 7/8: ' + JSON.stringify(dg));
-const dgInline = ctx.computeBulkPhysSpecBuffed({ H: 131, B: 100, D: 100 }, koNames, '', '탈', '', [], { excludeConditionalAbilities: true });
+const dgInline = inlineOf(dgSlot);
 assert(dgInline.physBuffed === dgInline.physBase, '탈 인라인 제외: ' + JSON.stringify(dgInline));
 
 // 초상투영 = 종명으로 폼 판정 (SW 통째 — 샘플 이름 "주춧돌 카운터" 인 우물 오거폰이 방어 ×1.5 로 속지 않게).

@@ -6,6 +6,7 @@ importScripts('formatter.js');
 importScripts('calcPayload.js');
 importScripts('simpleMovePower.js');
 importScripts('attackerFormOverride.js');
+importScripts('slotAnalysis.js');
 importScripts('showdownPaste.js');
 
 /**
@@ -17,7 +18,6 @@ importScripts('showdownPaste.js');
 
   var SL = globalThis.nuoSlotRead;
   var SMP = globalThis.simpleMovePower;
-  var AFO = globalThis.attackerFormOverride;
 
   /** 확장 패키지 JSON 파일 → 읽기 실패·모양 이상 때 쓸 빈 문서. */
   var DOC_EMPTY = {
@@ -322,16 +322,8 @@ importScripts('showdownPaste.js');
     });
   }
 
-  function realByLetterFromSlot(slot) {
-    var out = {};
-    var i;
-    for (i = 0; i < 6; i++) out['HABCDS'.charAt(i)] = SL.stat(slot, i).real;
-    return out;
-  }
-
   /**
-   * 슬롯 분석 입구 — 인라인 어노테이션·요약 복사 공용.
-   * bulk = 복사용 (`기본 (버프)`), bulkInline = 인라인용 (풀체력 조건부 특성 제외 — F51).
+   * 슬롯 분석 입구 — 인라인 어노테이션·요약 복사 공용. 문서 로딩만 하고 계산은 slotAnalysis.js.
    * @returns {Promise<{ movePowers: Array, bulk: object|null, bulkInline: object|null }>}
    */
   function analyzeSlot(slotData) {
@@ -345,29 +337,7 @@ importScripts('showdownPaste.js');
       natureKoDoc: 'natureKoMap.json',
       natureStatMulDoc: 'natureStatMul.json',
     }).then(function (d) {
-      // 결정력 입력만 폼 보정한 클론으로 교체. 내구력/그 외 소비자는 원본 slotData 사용.
-      var slotForPower = slotData;
-      if (AFO && typeof AFO.applyAttackerFormOverride === 'function') {
-        slotForPower = AFO.applyAttackerFormOverride(
-          slotData,
-          d.natureKoDoc,
-          d.natureStatMulDoc
-        );
-      }
-      var reals = realByLetterFromSlot(slotData);
-      var speciesKo = SL.speciesKo(slotData);
-      var titleCtx = SL.sampleName(slotData) + '\n' + speciesKo;
-      function bulk(excludeConditional) {
-        return globalThis.computeBulkPhysSpecBuffed(
-          reals, d.names, SL.item(slotData), SL.ability(slotData), titleCtx, d.types || [],
-          { excludeConditionalAbilities: excludeConditional, speciesName: speciesKo }
-        );
-      }
-      return {
-        movePowers: SMP.computeMovePowers(slotForPower, d.types, d.names, d.moveTags),
-        bulk: bulk(false),
-        bulkInline: bulk(true),
-      };
+      return globalThis.nuoSlotAnalysis.analyze(slotData, d);
     });
   }
 

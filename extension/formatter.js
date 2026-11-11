@@ -12,15 +12,9 @@
   /** 나무위키·커뮤 관행: (HP실×방어실)/k, (HP실×특방실)/k. 괄호: modifiers.json 도구·특성·패앙·고대활성 등 + 모래날림/눈퍼뜨리기(타입 조건). 적용 키 = modifiers.json 의 bulk* 키. */
   var BULK_REAL_DIVISOR = 0.411;
 
-  /** names = koNames.forDocs(...) 해석기 */
-  function findItemBulkRule(names, itemRaw) {
-    var found = names && names.itemRule(itemRaw);
-    var r = found && found.rule;
+  /** 도구 규칙 중 내구 배율이 있는 것만 (종 한정 판정은 slotAnalysis 문맥에서 끝남). */
+  function itemBulkRule(r) {
     return r && (r.bulkDefMul != null || r.bulkSpdMul != null) ? r : null;
-  }
-
-  function findAbilityRuleWithSlug(names, abilityRaw) {
-    return names ? names.abilityRule(abilityRaw) : null;
   }
 
   function numBulkMul(v, fallback) {
@@ -108,20 +102,13 @@
    *   샘플텍스트 path (legacy wrapper) 는 opts 안 넘기므로 현재 동작 그대로.
    *   결정력의 base/buffed 분리와 컨셉 일치 — 데이터에 “조건부” 마킹.
    *
+   * @param {object} c slotAnalysis 문맥 (real = 내구력용 실수치 — 실드폼 원본, 폼 보정은 결정력만)
    * @param {object} [opts]
    * @param {boolean} [opts.excludeConditionalAbilities]
-   * @param {string} [opts.speciesName] 종 한정 도구 판정용 종명 — 없으면 speciesTitleContext (샘플 제목 섞이면 오판)
    * @returns {{ physBase: number, specBase: number, physBuffed: number, specBuffed: number }|null}
    */
-  function computeBulkPhysSpecBuffed(
-    realByLetter,
-    names,
-    itemRaw,
-    abilityRaw,
-    speciesTitleContext,
-    speciesTypesEn,
-    opts
-  ) {
+  function computeBulkPhysSpecBuffed(c, opts) {
+    var realByLetter = c.real;
     var h = realByLetter.H;
     var b = realByLetter.B;
     var d = realByLetter.D;
@@ -142,12 +129,11 @@
       if (m.spd !== 1) dEff = Math.floor(dEff * m.spd);
     }
 
-    var speciesName = opts && opts.speciesName != null ? opts.speciesName : speciesTitleContext;
-    var abFound = findAbilityRuleWithSlug(names, abilityRaw);
+    var abFound = c.ability;
     var arule = (abFound && abFound.rule) || {};
     if (abFound) {
       if (abFound.slug === 'embody-aspect' && arule.bulkEmbodyAspect) {
-        statMul(embodyBulkMulFromContext(speciesName || ''));
+        statMul(embodyBulkMulFromContext(c.speciesKo));
       } else if (arule.bulkHighestOfAtkFamily) {
         statMul(protoQuarkBulkMul(realByLetter, arule));
       } else if (!(excludeConditional && arule.bulkConditional === true)) {
@@ -164,13 +150,13 @@
       }
     }
 
-    var itemRule = findItemBulkRule(names, itemRaw);
-    if (itemRule && FC.ruleFitsSpecies(itemRule, speciesName)) {
+    var itemRule = itemBulkRule(c.itemRule);
+    if (itemRule) {
       var im = bulkMultipliersFromRule(itemRule);
       statMul({ def: im.defM, spd: im.spdM });
     }
 
-    if (abFound) statMul(weatherBulkMulSandSnowOnly(abFound.slug, speciesTypesEn));
+    if (abFound) statMul(weatherBulkMulSandSnowOnly(abFound.slug, c.types));
 
     var physBuffed = Math.floor((hEff * bEff * sDef) / BULK_REAL_DIVISOR);
     var specBuffed = Math.floor((hEff * dEff * sSpd) / BULK_REAL_DIVISOR);

@@ -13,7 +13,6 @@
 (function (global) {
   'use strict';
 
-  var FC = global.nuoFmtCommon;
   var SL = global.nuoSlotRead;
 
   /** 한글 타입명 → PokeAPI type.name */
@@ -354,36 +353,23 @@
   }
 
   /**
-   * @param {object} slotData Smartnuo 공유 data 객체
-   * @param {string[]} speciesTypesEn
-   * @param {object} names koNames.forDocs(...) 해석기 (도구·특성 규칙, 기술 id)
+   * @param {object[]} moves 슬롯 pokemon.moves (기술 4칸)
+   * @param {object} c slotAnalysis 문맥 — 타입·도구 규칙(종 한정 판정 끝남)·특성 규칙·결정력용 실수치(power, 폼 보정 반영)
+   * @param {object} names koNames.forDocs(...) 해석기 (기술 id)
    * @param {object|null} moveTagsJson moveTags.json 전체 또는 null
    * @returns {({ base: number, buffed: number, cls: string }|null)[]}
    */
-  function computeMovePowers(slotData, speciesTypesEn, names, moveTagsJson) {
+  function computeMovePowers(moves, c, names, moveTagsJson) {
     var out = [null, null, null, null];
-    var poke = slotData && slotData.pokemon;
-    if (!poke || !Array.isArray(poke.moves)) return out;
+    if (!Array.isArray(moves)) return out;
 
-    var itemHit = names.itemRule(SL.item(slotData));
-    var itemRule = itemHit && FC.ruleFitsSpecies(itemHit.rule, SL.speciesKo(slotData)) ? itemHit.rule : null;
-    var abilityHit = names.abilityRule(SL.ability(slotData));
-    var abilityRule = abilityHit ? abilityHit.rule : null;
+    var speciesTypesEn = c.types;
+    var itemRule = c.itemRule;
+    var abilityRule = c.ability ? c.ability.rule : null;
+    var atk = c.power.atk;
+    var spa = c.power.spa;
+    var def = c.power.def;
 
-    var stats = poke.stats || {};
-    var atk =
-      stats.attack && stats.attack.real != null ? parseInt(stats.attack.real, 10) : null;
-    var spa =
-      stats.special_attack && stats.special_attack.real != null
-        ? parseInt(stats.special_attack.real, 10)
-        : null;
-    var def =
-      stats.defense && stats.defense.real != null ? parseInt(stats.defense.real, 10) : null;
-    if (atk != null && isNaN(atk)) atk = null;
-    if (spa != null && isNaN(spa)) spa = null;
-    if (def != null && isNaN(def)) def = null;
-
-    var moves = poke.moves;
     var i;
     for (i = 0; i < 4 && i < moves.length; i++) {
       var mv = moves[i];

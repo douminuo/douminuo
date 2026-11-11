@@ -18,7 +18,10 @@ vm.runInContext(fs.readFileSync(path.join(root, 'extension', 'slotRead.js'), 'ut
 vm.runInContext(fs.readFileSync(fmtCommonPath, 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(shareToRawPath, 'utf8'), ctx);
 vm.runInContext(fs.readFileSync(simplePath, 'utf8'), ctx);
-const SMP = ctx.simpleMovePower;
+// 결정력은 슬롯 분석 입구(slotAnalysis) 경유 — SW analyzeSlot 과 같은 조립.
+for (const f of ['formatter.js', 'attackerFormOverride.js', 'slotAnalysis.js']) {
+  vm.runInContext(fs.readFileSync(path.join(root, 'extension', f), 'utf8'), ctx, { filename: f });
+}
 const names = koNamesForSmoke(ctx);
 
 function assert(cond, msg) {
@@ -30,7 +33,7 @@ function cmp(slot, types) {
   const p = Object.assign({ name: 'smoke' }, slot.pokemon);
   if (slot.ability !== undefined) p.ability = slot.ability;
   if (slot.equipment !== undefined) p.equipment = slot.equipment;
-  return SMP.computeMovePowers({ pokemon: p }, types, names, moveTags);
+  return ctx.nuoSlotAnalysis.analyze({ pokemon: p }, { names, moveTags, types }).movePowers;
 }
 
 const firePunch = {

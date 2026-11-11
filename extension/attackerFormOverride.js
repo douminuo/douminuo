@@ -1,7 +1,6 @@
 /**
- * 결정력 계산 직전, 폼 고정 종(현재는 킬가르도 실드→블레이드)을
- * 공격형 폼의 Atk/SpA 실수치로 패치한 slotData 클론을 만든다.
- * 내구력 계산용 원본 slotData 는 호출자가 따로 보유해야 한다.
+ * 폼 고정 종(현재는 킬가르도 실드→블레이드)의 공격형 폼 공격·특공 실수치 — 결정력 전용 (slotAnalysis 문맥 power).
+ * 내구력은 실드폼 원본 실수치를 그대로 씀. 슬롯은 고치지 않음.
  */
 (function (g) {
   'use strict';
@@ -79,24 +78,15 @@
     return typeof v === 'number' && v > 0 ? v : 1;
   }
 
-  function deepClone(o) {
-    try {
-      return JSON.parse(JSON.stringify(o));
-    } catch (e) {
-      return null;
-    }
-  }
-
   /**
-   * @param {object} slotData 원본 (절대 변형 금지)
+   * @param {object} slotData 슬롯 (읽기만)
    * @param {object} natureKoDoc { koToSlug }
    * @param {object} natureStatMulDoc { bySlug }
-   * @returns {object} 클론(블레이드 적용) 또는 원본 참조(해당 없음)
+   * @returns {{ atk: number, spa: number } | null} 해당 없음 = null
    */
-  function applyAttackerFormOverride(slotData, natureKoDoc, natureStatMulDoc) {
-    if (!slotData || typeof slotData !== 'object') return slotData;
+  function attackerFormStats(slotData, natureKoDoc, natureStatMulDoc) {
     var poke = SL.mon(slotData);
-    if (!poke) return slotData;
+    if (!poke) return null;
 
     var rule = null;
     var i;
@@ -106,19 +96,15 @@
         break;
       }
     }
-    if (!rule) return slotData;
+    if (!rule) return null;
 
-    var clone = deepClone(slotData);
-    if (!clone || !clone.pokemon) return slotData;
-    var p = clone.pokemon;
-    var stats = p.stats || (p.stats = {});
-
-    var lvl = parseInt(p.level, 10);
+    var stats = poke.stats || {};
+    var lvl = parseInt(poke.level, 10);
     if (!lvl || lvl < 1) lvl = 50;
     var natureKo = SL.nature(slotData);
 
-    var atkObj = stats.attack || (stats.attack = {});
-    var spaObj = stats.special_attack || (stats.special_attack = {});
+    var atkObj = stats.attack || {};
+    var spaObj = stats.special_attack || {};
     var atkEv = parseInt(atkObj.value, 10) | 0;
     var spaEv = parseInt(spaObj.value, 10) | 0;
     // F15: 슬롯의 individual_value 우선. 없거나 범위 밖이면 31.
@@ -129,21 +115,13 @@
     var atkMul = natureMulFor(natureKo, 'atk', natureKoDoc, natureStatMulDoc);
     var spaMul = natureMulFor(natureKo, 'spa', natureKoDoc, natureStatMulDoc);
 
-    atkObj.real = computeRealNonHp(rule.bladeAtkBase, atkIv, atkEv, lvl, atkMul);
-    spaObj.real = computeRealNonHp(rule.bladeSpaBase, spaIv, spaEv, lvl, spaMul);
-
-    if (Array.isArray(p.baseStats) && p.baseStats.length >= 6) {
-      p.baseStats[1] = rule.bladeAtkBase;
-      p.baseStats[3] = rule.bladeSpaBase;
-    } else if (p.baseStats && typeof p.baseStats === 'object') {
-      p.baseStats.attack = rule.bladeAtkBase;
-      p.baseStats.special_attack = rule.bladeSpaBase;
-    }
-
-    return clone;
+    return {
+      atk: computeRealNonHp(rule.bladeAtkBase, atkIv, atkEv, lvl, atkMul),
+      spa: computeRealNonHp(rule.bladeSpaBase, spaIv, spaEv, lvl, spaMul),
+    };
   }
 
   g.attackerFormOverride = {
-    applyAttackerFormOverride: applyAttackerFormOverride,
+    attackerFormStats: attackerFormStats,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);
