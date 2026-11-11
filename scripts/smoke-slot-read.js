@@ -54,6 +54,19 @@ eq(SL.speciesSlug({ pokemon: { name: '니드킹' } }), '', 'speciesSlug 한글 =
 eq(SL.sampleName(slot), '배북', 'sampleName');
 eq([SL.item(slot), SL.ability(slot), SL.nature(slot), SL.tera(slot)], ['Leftovers', '배틀스위치', '조심', '물'], 'item/ability/nature/tera');
 eq(SL.moves(slot), ['섀도볼', '킹실드', '', ''], 'moves');
+// 기술 칸 상세 — 2026-11-10 실측 네 모양 (고정 위력, 위력 변동 물리·특수, 글자만 침).
+const mvs = { pokemon: { name: 'x', moves: [
+  { name: { id: 'pound', name: 'Pound', kr: '막치기', type: 'Normal', base_power: 40, category: 'Physical' }, name_kr: '막치기', type: '노말', power: 40, damage_class: 'Physical' },
+  { name: { id: 'gyroball', name: 'Gyro Ball', kr: '자이로볼', type: 'Steel', base_power: 0, category: 'Physical' }, name_kr: '자이로볼', type: '강철', power: 0, damage_class: 'Physical' },
+  { name: { id: 'grassknot', name: 'Grass Knot', kr: '풀묶기', type: 'Grass', base_power: 0, category: 'Special' }, name_kr: '', type: '풀', power: 0, damage_class: 'Special' },
+  { name: '사이코쇼크', name_kr: '', type: '', power: 0, damage_class: '' },
+] } };
+eq(SL.moveRow(mvs, 0), { id: 'pound', ko: '막치기', dc: 'physical', power: 40, typeEn: 'normal', typeKo: '노말' }, 'moveRow 고정 위력');
+eq(SL.moveRow(mvs, 1), { id: 'gyroball', ko: '자이로볼', dc: 'physical', power: 0, typeEn: 'steel', typeKo: '강철' }, 'moveRow 위력 변동');
+eq(SL.moveRow(mvs, 2), { id: 'grassknot', ko: '풀묶기', dc: 'special', power: 0, typeEn: 'grass', typeKo: '풀' }, 'moveRow name_kr 비면 name.kr');
+eq(SL.moveRow(mvs, 3), { id: '사이코쇼크', ko: '사이코쇼크', dc: '', power: 0, typeEn: '', typeKo: '' }, 'moveRow 글자만 침');
+eq([SL.moveRow(slot, 2), SL.moveRow(slot, 3), SL.moveRow({}, 0)], [null, null, null], 'moveRow 빈 칸');
+
 eq(SL.stat(slot, 1), { sp: 0, real: 70, iv: 0 }, 'stat attack');
 eq(SL.stat(slot, 3), { sp: 0, real: 0, iv: 31 }, 'stat 없음');
 eq(SL.spSix(slot), [32, 0, 0, 0, 0, 2], 'spSix');

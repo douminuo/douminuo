@@ -3,6 +3,9 @@
  * 슬롯 = __NUXT__.state['$sparty.slots'][i] 그대로 (bridge 가 도감 보강해 넘김, 저장 샘플도 같은 모양):
  *   { slot_display, sample_name, sp_used, sp_total, pokemon: { name:{id,db_en,smogon_id,kr,…}, name_kr, sprite,
  *     first_type, second_type?, level, personality, terastal, ability, equipment, stats:{<key>:{value,real}}, moves[4] } }
+ * 기술 칸 (2026-11-10 실측): 목록에서 고른 기술 = { name:{id,name,kr,type,base_power,category}, name_kr, type(한글),
+ *   power, damage_class('Physical'|'Special'|'Status') } — 위력 변동 기술(자이로볼 등)은 power 0. 글자만 친 기술 =
+ *   { name:'사이코쇼크'(문자열), name_kr:'', type:'', power:0, damage_class:'' }.
  * 값은 문자열 또는 { kr, en, name } 객체 — 둘 다 label() 로 읽음. 사이트 모양이 바뀌면 여기만 고침 (TEMPLATES §10.1).
  * SW(importScripts) 와 isolated 콘텐츠 스크립트(manifest) 가 같은 파일을 로드. MAIN bridge 는 쓰지 않음.
  */
@@ -92,6 +95,30 @@
     return out;
   }
 
+  /**
+   * 기술 칸 i 상세. 빈 칸·기술 아님 = null.
+   * @returns {{ id: string, ko: string, dc: string, power: number, typeEn: string, typeKo: string } | null}
+   *   id = name.id (객체) 또는 문자열 name 그대로 (Showdown id 해석은 호출자 — koNames), dc = 소문자 분류 ('' = 글자만 친 기술),
+   *   power = 없으면 0, typeEn = name.type 소문자 ('' 면 typeKo 로 변환).
+   */
+  function moveRow(slot, i) {
+    var p = mon(slot);
+    var mv = p && Array.isArray(p.moves) ? p.moves[i] : null;
+    if (!mv || typeof mv !== 'object') return null;
+    var n = mv.name;
+    var obj = n && typeof n === 'object';
+    var id = obj ? String(n.id || '').trim() : typeof n === 'string' ? n.trim() : '';
+    if (!id) return null;
+    return {
+      id: id,
+      ko: label(mv.name_kr) || (obj ? label(n.kr) : /[^\x00-\x7f]/.test(id) ? id : ''),
+      dc: String(mv.damage_class || '').toLowerCase(),
+      power: asInt(mv.power) || 0,
+      typeEn: obj && n.type ? String(n.type).toLowerCase() : '',
+      typeKo: label(mv.type),
+    };
+  }
+
   /** 스탯 i (STAT_KEYS 순) → { sp, real, iv }. 없으면 sp 0 · real 0 · iv 31. */
   function stat(slot, i) {
     var p = mon(slot);
@@ -165,6 +192,7 @@
     nature: function (slot) { return field(slot, 'personality'); },
     tera: function (slot) { return field(slot, 'terastal'); },
     moves: moves,
+    moveRow: moveRow,
     stat: stat,
     spSix: spSix,
     level: level,

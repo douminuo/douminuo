@@ -128,7 +128,7 @@ importScripts('showdownPaste.js');
   }
 
   /**
-   * F41: 계산기 자동입력 GET_CALC_PAYLOADS_FROM_SLOT 의 8개 doc 묶음 (옛 URL 경로
+   * F41: 계산기 자동입력 GET_CALC_PAYLOADS_FROM_SLOT 의 doc 묶음 (옛 URL 경로
    * GET_CALC_PAYLOADS 와 공유하던 헬퍼 — URL 경로는 REDESIGN §11 에서 제거).
    *
    * F40: moveTags.json 은 calcPayload.js 자체 로더에서도 fetch 하던 것을 본 헬퍼로 단일화.
@@ -136,7 +136,7 @@ importScripts('showdownPaste.js');
    *
    * @returns {Promise<{
    *   natureKoDoc: object, natureStatMulDoc: object, typeKoDoc: object,
-   *   moveKoFallbackDoc: object, koNames: object, moveKoDoc: object,
+   *   koNames: object,
    *   moveSlugToEnDoc: object, moveTagsDoc: object,
    * }>}
    */
@@ -145,9 +145,7 @@ importScripts('showdownPaste.js');
       natureKoDoc: 'natureKoMap.json',
       natureStatMulDoc: 'natureStatMul.json',
       typeKoDoc: 'typeKoMap.json',
-      moveKoFallbackDoc: 'moveKoFallback.json',
       koNames: loadKoNames(),
-      moveKoDoc: 'moveKoMap.json',
       // 슬러그 정규화 (hyphenless → hyphenated) — calcPayload 가 한 번만 reduce.
       moveSlugToEnDoc: 'moveSlugToEn.json',
       moveTagsDoc: 'moveTags.json',
@@ -722,8 +720,16 @@ importScripts('showdownPaste.js');
   chrome.runtime.onInstalled.addListener(function (details) {
     if (details.reason !== 'update') return;
     // 2.0.1: 옛 번들 storage 미러 정리 — fetch 성공마다 쓰기만 하던 사본 (ARCH_REVIEW 후보 3).
+    // 2.0.2: 계산기 기술 PokéAPI 조회 캐시 — 기술 고르기 = 슬롯만 (calcPayload firstDamagingMoveFromSlot).
     chrome.storage.local.remove(
-      ['nuo_fmt_modifiersCache', 'nuo_fmt_moveTagsCache', 'nuo_fmt_moveKoCache', 'nuo_fmt_pokemonTypeCache'],
+      [
+        'nuo_fmt_modifiersCache',
+        'nuo_fmt_moveTagsCache',
+        'nuo_fmt_moveKoCache',
+        'nuo_fmt_pokemonTypeCache',
+        'nuo_fmt_moveMetaCache',
+        'nuo_calc_move_ko_slug_map',
+      ],
       function () {
         return chrome.runtime.lastError;
       }

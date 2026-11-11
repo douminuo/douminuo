@@ -114,6 +114,28 @@ async function run() {
   r = await fill(F.dragonite, 'defender', 'speed');
   assert(r.ok && r.side.effort === 32, 'dragonite speed defender: ' + JSON.stringify(r.side && r.side.effort));
 
+  // 공격 기술 고르기 = 슬롯만 (CALC_MOVE_PICK_PLAN): 위력 변동 → 그 기술 위력 40, 글자만 친 기술·변화기만 → 몸통박치기
+  const atkMove = async (s) => (await fill(s, 'attacker', 'calc')).side;
+  r = await atkMove(F.variable_only);
+  assert(r.move.name.id === 'gyroball' && r.move.name.basePower === 40 && r.move.name.category === 'Physical' && r.effort === 32, 'variable only: ' + JSON.stringify([r.move.name, r.effort]));
+  r = await atkMove(F.text_then_variable);
+  assert(r.move.name.id === 'grassknot' && r.move.name.category === 'Special' && r.effort === 32, 'text + variable: ' + JSON.stringify([r.move.name, r.effort]));
+  for (const k of ['text_only', 'status_only']) {
+    r = await atkMove(F[k]);
+    assert(r.move.name.id === 'tackle', k + ' = tackle: ' + JSON.stringify(r.move.name));
+  }
+  // 위력 고정이 위력 변동보다 먼저 (순서 무관)
+  const mixed = JSON.parse(JSON.stringify(F.variable_only));
+  mixed.pokemon.moves[3] = mv('ironhead', 'Iron Head', '아이언헤드', 'Steel', '강철', 80, 'Physical');
+  r = await atkMove(mixed);
+  assert(r.move.name.id === 'ironhead' && r.move.name.basePower === 80, 'fixed before variable: ' + JSON.stringify(r.move.name));
+  // 영문 slug 문자열 이름 + 분류·위력 있음 → 골라짐, id 풀림
+  const slugName = JSON.parse(JSON.stringify(F.text_only));
+  slugName.pokemon.moves[0] = { name: 'play-rough', name_kr: '', type: '페어리', power: 90, damage_class: 'Physical' };
+  r = await atkMove(slugName);
+  assert(r.move.name.id === 'playrough' && r.move.name.name === 'Play Rough' && r.move.name.type === 'Fairy', 'english slug string: ' + JSON.stringify(r.move.name));
+  assert(sw.net.every((l) => l.indexOf('pokeapi.co/api/v2/move/') === -1), 'no PokéAPI move fetch: ' + JSON.stringify(sw.net));
+
   // bridge 단독 오류 코드 — 매퍼(mapCalcFillError)가 아는 코드
   const bg = await sw.send({ type: 'GET_CALC_PAYLOADS_FROM_SLOT', slot: hippo, side: 'defender', page: 'calc' });
   const msg = { source: 'nuo-calc-ext', type: 'NUO_APPLY_CALC_V31', requestId: 'r', side: 'defender', payload: bg.payload, page: 'calc' };
