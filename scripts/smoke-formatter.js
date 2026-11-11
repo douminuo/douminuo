@@ -103,4 +103,14 @@ assert(dg.physBuffed === Math.floor(((131 - 16) * 100) / 0.411) && dg.specBuffed
 const dgInline = ctx.computeBulkPhysSpecBuffed({ H: 131, B: 100, D: 100 }, koNames, '', '탈', '', [], { excludeConditionalAbilities: true });
 assert(dgInline.physBuffed === dgInline.physBase, '탈 인라인 제외: ' + JSON.stringify(dgInline));
 
-console.log('smoke-formatter: ok');
+// 초상투영 = 종명으로 폼 판정 (SW 통째 — 샘플 이름 "주춧돌 카운터" 인 우물 오거폰이 방어 ×1.5 로 속지 않게).
+(async () => {
+  const { loadSW, F } = require('./lib/swHarness');
+  const sw = loadSW(path.join(root, 'extension'));
+  const well = await sw.send({ type: 'ANNOTATE_BUILDER_SLOT', slotData: F.ogerpon_wellspring });
+  assert(well.bulkText === '물리내구력:' + q(155 * 104) + '\n특수내구력:' + q(155 * 116) + ' (' + q(155 * Math.floor(116 * 1.5)) + ')', '초상투영 우물: ' + JSON.stringify(well.bulkText));
+  assert(q(155 * Math.floor(116 * 1.5)) === 65620 && q(155 * 104) === 39221, '플랜 손계산 값');
+  const corner = await sw.send({ type: 'ANNOTATE_BUILDER_SLOT', slotData: F.ogerpon_cornerstone });
+  assert(corner.bulkText === '물리내구력:' + q(155 * 104) + ' (' + q(155 * Math.floor(104 * 1.5)) + ')\n특수내구력:' + q(155 * 116), '초상투영 주춧돌: ' + JSON.stringify(corner.bulkText));
+  console.log('smoke-formatter: ok');
+})().catch((e) => { console.error(e); process.exit(1); });

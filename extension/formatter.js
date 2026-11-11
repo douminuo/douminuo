@@ -54,7 +54,10 @@
     return { def: 1, spd: 1 };
   }
 
-  /** 초상투영: 종/제목에 주춧돌·우물(영·한) 패턴. */
+  /**
+   * 초상투영: 종명에 주춧돌·우물(영·한) 패턴 (사이트 종명 `오거폰 (우물의가면)` 등, 2026-11-10 실측). 샘플 제목은 넘기지 않음 —
+   * "주춧돌 카운터" 이름의 우물 폼이 방어 ×1.5 로 계산되던 것. 사이트 계산기 내구력엔 이 배율이 없지만 유지 (사용자 결정 2026-11-10).
+   */
   function embodyBulkMulFromContext(ctx) {
     var t = normalizeMatchKey(ctx || '');
     if (!t) return { def: 1, spd: 1 };
@@ -139,11 +142,12 @@
       if (m.spd !== 1) dEff = Math.floor(dEff * m.spd);
     }
 
+    var speciesName = opts && opts.speciesName != null ? opts.speciesName : speciesTitleContext;
     var abFound = findAbilityRuleWithSlug(names, abilityRaw);
     var arule = (abFound && abFound.rule) || {};
     if (abFound) {
       if (abFound.slug === 'embody-aspect' && arule.bulkEmbodyAspect) {
-        statMul(embodyBulkMulFromContext(speciesTitleContext || ''));
+        statMul(embodyBulkMulFromContext(speciesName || ''));
       } else if (arule.bulkHighestOfAtkFamily) {
         statMul(protoQuarkBulkMul(realByLetter, arule));
       } else if (!(excludeConditional && arule.bulkConditional === true)) {
@@ -161,7 +165,6 @@
     }
 
     var itemRule = findItemBulkRule(names, itemRaw);
-    var speciesName = opts && opts.speciesName != null ? opts.speciesName : speciesTitleContext;
     if (itemRule && FC.ruleFitsSpecies(itemRule, speciesName)) {
       var im = bulkMultipliersFromRule(itemRule);
       statMul({ def: im.defM, spd: im.spdM });

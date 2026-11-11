@@ -135,6 +135,21 @@ const F = {
     stats: stats([0, 0, 0, 32, 0, 32], [156, 112, 97, 137, 95, 137]),
     moves: [{ name: '지진', name_kr: '', type: '', power: 0, damage_class: '' }, mv('grassknot', 'Grass Knot', '풀묶기', 'Grass', '풀', 0, 'Special'), EMPTY_MV, EMPTY_MV],
   }),
+  // 초상투영 오거폰 (SLOT_ANALYSIS_PLAN §4 — 우물 폼 Lv50 무보정 실수치 실측 155/140/104/80/116/130, 주춧돌 폼 같은 종족값).
+  // 우물 폼 샘플 이름에 "주춧돌" — 종명만 보고 폼을 판정하는지.
+  ogerpon_wellspring: slot(1, {
+    _sn: '주춧돌 카운터',
+    name: { id: 'ogerponwellspring', db_en: 'ogerpon-wellspring-mask', smogon_id: 'ogerponwellspring', name: 'Ogerpon-Wellspring', kr: '오거폰 (우물의가면)', types: ['Grass', 'Water'] },
+    name_kr: '오거폰 (우물의가면)', sprite: '', first_type: 'grass', second_type: 'water',
+    ability: '초상투영', stats: stats([0, 0, 0, 0, 0, 0], [155, 140, 104, 80, 116, 130]),
+    moves: [mv('ivycudgel', 'Ivy Cudgel', '덩굴몽둥이', 'Grass', '풀', 100, 'Physical'), EMPTY_MV, EMPTY_MV, EMPTY_MV],
+  }),
+  ogerpon_cornerstone: slot(2, {
+    name: { id: 'ogerponcornerstone', db_en: 'ogerpon-cornerstone-mask', smogon_id: 'ogerponcornerstone', name: 'Ogerpon-Cornerstone', kr: '오거폰 (주춧돌의가면)', types: ['Grass', 'Rock'] },
+    name_kr: '오거폰 (주춧돌의가면)', sprite: '', first_type: 'grass', second_type: 'rock',
+    ability: '초상투영', stats: stats([0, 0, 0, 0, 0, 0], [155, 140, 104, 80, 116, 130]),
+    moves: [mv('ivycudgel', 'Ivy Cudgel', '덩굴몽둥이', 'Grass', '풀', 100, 'Physical'), EMPTY_MV, EMPTY_MV, EMPTY_MV],
+  }),
   empty_obj: {},
   empty_null: null,
   meta_only: { slot_display: '#5', sample_name: '', sp_used: 0, sp_total: 66, pokemon: { name: '', name_kr: '', moves: [] } },
