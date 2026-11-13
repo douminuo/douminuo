@@ -157,8 +157,9 @@
   }
 
   /**
-   * 슬롯 sprite → 이미지 URL. PokéAPI raw·스마트누오 sprite 경로면 정규화 URL, 그 밖의 https/상대경로는 원문
-   * (사이트 `/data/pokeapi-sprites/…` 상대경로 포함), 그 외('javascript:' 등)는 ''.
+   * 슬롯 sprite → 이미지 URL. PokéAPI raw·스마트누오 sprite 경로면 정규화 URL, 그 밖의 스마트누오 주소는 원문
+   * (사이트 `/data/pokeapi-sprites/…` 상대경로 포함), 그 외(다른 호스트·'javascript:' 등)는 ''.
+   * 다른 호스트를 버리는 이유: 공유 링크로 들어온 sprite 값이 <img> 요청을 PRIVACY §2 도메인 밖으로 보내지 않게 (2026-11-13).
    */
   function sprite(slot) {
     var p = mon(slot);
@@ -173,7 +174,9 @@
     } catch (e) {
       return '';
     }
-    return /^(https:\/\/|\/[^/])/.test(u) ? u : '';
+    var h = (parsed.hostname || '').toLowerCase();
+    if (h !== 'smartnuo.com' && h !== 'www.smartnuo.com') return '';
+    return /^\/[^/]/.test(u) ? u : parsed.href;
   }
 
   g.nuoSlotRead = {
