@@ -81,5 +81,9 @@ eq(sp('https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/
 eq(sp('javascript:alert(1)'), '', 'sprite javascript:');
 eq(sp('data:image/png;base64,AAAA'), '', 'sprite data:');
 eq(sp(''), '', 'sprite 빈 값');
+// 허용 호스트 밖 https 는 버림 — <img> 요청이 PRIVACY §2 도메인 밖으로 나가지 않게 (2026-11-13).
+eq(sp('https://evil.example/a.png'), '', 'sprite 다른 호스트 https');
+eq(sp('//evil.example/a.png'), '', 'sprite 다른 호스트 //');
+eq(sp('https://smartnuo.com/data/pokeapi-sprites/front/681.png'), 'https://smartnuo.com/data/pokeapi-sprites/front/681.png', 'sprite 스마트누오 절대주소');
 
 console.log('smoke-slot-read: ok');
