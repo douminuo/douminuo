@@ -67,6 +67,17 @@ assert(bulkOf(sand, ['rock', 'dark']).specBuffed === q(100 * 120), 'sand + rock 
 assert(bulkOf(sand, ['dark', 'flying']).specBuffed === q(8000), 'sand without rock');
 assert(bulkOf(slot(Object.assign({ ability: '눈퍼뜨리기' }, base)), ['ice']).physBuffed === q(100 * 120), 'snow + ice phys ×1.5');
 
+// 사이트 실측 2026-11-13 (REA 2차). 진화의휘석 = 진화 전(name.nfe)만. 해피너스 54608, 럭키 73832.
+const withNfe = (s, nfe) => { if (nfe !== undefined) s.pokemon.name.nfe = nfe; return s; };
+const blissey = bulkOf(withNfe(slot({ item: '진화의휘석', reals: [362, 10, 62, 10, 187, 10] }), false));
+assert(blissey.physBase === 54608 && blissey.physBuffed === 54608, 'eviolite final evo off: ' + JSON.stringify(blissey));
+assert(bulkOf(withNfe(slot({ item: '진화의휘석', reals: [357, 10, 57, 10, 157, 10] }), true)).physBuffed === 73832, 'eviolite nfe on');
+assert(bulkOf(slot({ item: '진화의휘석', reals: [357, 10, 57, 10, 157, 10] })).physBuffed === 73832, 'eviolite nfe unknown → applied');
+// 테라셸: 멀티스케일처럼 복사는 괄호 ×2, 인라인은 제외 (테라파고스 202/162/162, 사이트 159240).
+const tera = slot({ ability: '테라셸', reals: [202, 10, 162, 10, 162, 10] });
+assert(bulkOf(tera).physBase === 79620 && bulkOf(tera).physBuffed === 159240 && bulkOf(tera).specBuffed === 159240, 'tera shell: ' + JSON.stringify(bulkOf(tera)));
+assert(inlineOf(tera).physBuffed === 79620, 'tera shell inline excluded');
+
 // BACKLOG #2: 실능치 줄 — 기술배치상 안 쓰는 A/C 는 x.
 const sr = slot({ reals: [125, 100, 50, 90, 60, 80], moves: ['Tackle'] });
 const realLine = (mp) => formatSlotsText([sr], [{ movePowers: mp }], { includeRealStats: true }).split('\n')[2];

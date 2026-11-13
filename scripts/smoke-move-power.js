@@ -81,6 +81,22 @@ assert(flashFire[0].buffed === 36855, 'flash fire buffed (site 36855): got ' + f
 assert(flashFire[0].base === 24570, 'flash fire base (site no-ability 24570): got ' + flashFire[0].base);
 assert(flashFire[1].base === flashFire[1].buffed, 'flash fire skips non-fire move');
 
+// 사이트 실측 2026-11-13 (REA 2차). 하이드로스팀: 쾌청에서 ×0.5 가 아니라 ×1.5 (굽이치는물결 특공 177, 가뭄).
+const hydro = cmp(
+  { pokemon: { moves: [{ name: 'Hydro Steam', power: '80', damage_class: 'special', type: 'Water' }], stats: { special_attack: { real: 177 } } }, ability: { name: 'Drought' } },
+  ['water', 'dragon']
+);
+assert(hydro[0].base === 21240 && hydro[0].buffed === 31860, 'hydro steam sun (site 21240→31860): ' + JSON.stringify(hydro[0]));
+// 애크러뱃: 도구 없으면 위력 110 (파이어로 공격 133). 도구 있으면 55.
+const acroMv = { name: 'Acrobatics', power: '55', damage_class: 'physical', type: 'Flying' };
+const acro = cmp({ pokemon: { moves: [acroMv], stats: { attack: { real: 133 } } } }, ['fire', 'flying']);
+assert(acro[0].base === 21945 && acro[0].buffed === 21945, 'acrobatics no item (site 21945): ' + JSON.stringify(acro[0]));
+const acroItem = cmp({ pokemon: { moves: [acroMv], stats: { attack: { real: 133 } } }, equipment: { name: 'Charcoal' } }, ['fire', 'flying']);
+assert(acroItem[0].base === 10972, 'acrobatics with item (site 10972): ' + JSON.stringify(acroItem[0]));
+// 속임수: 상대 공격으로 계산 → 상대가 없는 결정력은 비움.
+const foul = cmp({ pokemon: { moves: [{ name: 'Foul Play', power: '95', damage_class: 'physical', type: 'Dark' }], stats: { attack: { real: 100 } } } }, ['dark']);
+assert(foul[0] === null, 'foul play power blank: ' + JSON.stringify(foul[0]));
+
 // 포톤가이저: 공격 > 특공이면 물리로 계산 → cls 도 physical (요약의 실능치 가림이 이걸 봄)
 const photon = { name: 'Photon Geyser', power: '100', damage_class: 'special', type: 'Psychic' };
 const pg = cmp({ pokemon: { moves: [photon], stats: { attack: { real: 180 }, special_attack: { real: 133 } } } }, ['psychic']);
