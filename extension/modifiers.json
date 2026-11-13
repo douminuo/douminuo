@@ -1,5 +1,5 @@
 {
-  "version": 18,
+  "version": 19,
   "items": {
     "choice-band": {
       "atkMulPhysical": 1.5,
@@ -838,6 +838,11 @@
       "boostType": "rock",
       "typedPowerMul": 1.5,
       "nameKo": "바위나르기"
+    },
+    "flash-fire": {
+      "condBoostType": "fire",
+      "condTypedStatMul": 1.5,
+      "nameKo": "타오르는불꽃"
     },
     "slow-start": {
       "condAtkMulPhysical": 0.5,

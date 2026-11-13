@@ -251,6 +251,10 @@
     if (abTypeHit && ar.typedMulOnStat) lBase = Math.floor(lBase * num(ar.typedPowerMul, 1));
     var lBuffed = lBase;
     if (isSpec && ar.spaBoostInSun != null) lBuffed = Math.floor(lBuffed * num(ar.spaBoostInSun, 1.5));
+    // 타오르는불꽃: 사이트는 늘 곱하지만 게임은 불꽃기를 받아야 켜짐 → buffed 만 (사용자 결정 2026-11-13).
+    if (ar.condBoostType != null && moveTypeEn === String(ar.condBoostType).toLowerCase().trim()) {
+      lBuffed = Math.floor(lBuffed * num(ar.condTypedStatMul, 1.5));
+    }
     if (atkStat && ar.condAtkMulPhysical != null) lBuffed = Math.floor(lBuffed * num(ar.condAtkMulPhysical, 1));
     if (isSpec && ar.condSpaMulSpecial != null) lBuffed = Math.floor(lBuffed * num(ar.condSpaMulSpecial, 1));
     function itemStat(l) {

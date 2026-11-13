@@ -16,8 +16,8 @@
  * 메시지 타입 V31: 확장 새로고침 후 페이지에 남은 옛 bridge(V30 수신)가 새 모양을 먼저 해석하지 않게.
  */
 (function () {
-  if (window.__NUO_CALC_BRIDGE_V44__) return;
-  window.__NUO_CALC_BRIDGE_V44__ = true;
+  if (window.__NUO_CALC_BRIDGE_V45__) return;
+  window.__NUO_CALC_BRIDGE_V45__ = true;
 
   var KEY_POKE_LIST = '$spokemon_list';
   var KEY_ATT = '$scalculator.attacker';
@@ -355,8 +355,9 @@
     };
   }
 
-  /** 특수기지만 상대 방어로 맞는 기술 (move.name.id = Showdown id). 사이트 수비 칸도 방어 실수치로 바뀜 (실측 2026-11-10). */
-  var SPECIAL_HITS_DEF = { psyshock: 1, psystrike: 1, secretsword: 1 };
+  /** 특수기지만 상대 방어로 맞는 기술 (move.name.id = Showdown id). 사이트 수비 칸도 방어 실수치로 바뀜 (실측 2026-11-10).
+   *  신비의칼은 게임상 방어지만 사이트가 특방 칸으로 다룸 (실측 2026-11-13) — 사이트를 따라 뺌 (사용자 결정). */
+  var SPECIAL_HITS_DEF = { psyshock: 1, psystrike: 1 };
 
   function inferIncomingPhysicalFromAttacker(att) {
     if (!att || !att.move) return null;
