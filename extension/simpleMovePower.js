@@ -317,6 +317,8 @@
       // 메가솔라(selfWeather)는 조건부 아님 — base 에도. 날씨 깔기(setsWeather)는 buffed 만.
       var wk = selfWeatherKey || (buffed ? weatherKey : '');
       var wm = WEATHER_TYPE_POWER_MUL[wk] && WEATHER_TYPE_POWER_MUL[wk][moveTypeEn];
+      // 하이드로스팀: 쾌청에서 반감 대신 ×1.5 (게임·사이트 같음, 실측 2026-11-13).
+      if (wk === 'sun' && moveId === 'hydrosteam') wm = 1.5;
       if (wm != null) d *= wm;
       var tm = buffed && TERRAIN_TYPE_POWER_MUL[terrainKey] && TERRAIN_TYPE_POWER_MUL[terrainKey][moveTypeEn];
       if (tm) d *= tm;
@@ -379,6 +381,12 @@
       var mv = moves[i];
       // F49: 슬롯당 showdown id 1회만 해석.
       var moveId = showdownMoveIdFromMove(mv, names);
+      // 속임수: 상대 공격 실수치로 계산 (게임·사이트) — 상대가 없으니 결정력 비움.
+      if (moveId === 'foulplay') continue;
+      // 애크러뱃: 도구가 없으면 위력 2배 (게임·사이트 같음, 실측 2026-11-13).
+      if (moveId === 'acrobatics' && !c.hasItem && mv && parseInt(mv.power, 10) > 0) {
+        mv = Object.assign({}, mv, { power: parseInt(mv.power, 10) * 2 });
+      }
       // F8: 단일 호출로 base + buffed 동시 산출.
       var pair = oneMovePowerInternalDual(
         mv,

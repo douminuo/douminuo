@@ -25,7 +25,7 @@
    * @param {{ names: object, types: string[], natureKoDoc?: object, natureStatMulDoc?: object }} docs
    * @returns {{ speciesKo: string, types: string[], itemRule: object|null, ability: ({slug: string, rule: object}|null),
    *   real: { H: number, A: number, B: number, C: number, D: number, S: number },
-   *   power: { atk: number|null, spa: number|null, def: number|null } }}
+   *   power: { atk: number|null, spa: number|null, def: number|null }, hasItem: boolean }}
    *   real = 내구력용 (SL.stat, 없으면 0 · 실드폼 원본), power = 결정력용 (없으면 null · 공격·특공은 폼 보정 반영).
    */
   function buildContext(slot, docs) {
@@ -36,7 +36,9 @@
     var i;
     for (i = 0; i < 6; i++) real['HABCDS'.charAt(i)] = SL.stat(slot, i).real;
     var poke = SL.mon(slot);
-    var power = { atk: realOrNull(poke, 'attack'), spa: realOrNull(poke, 'special_attack'), def: realOrNull(poke, 'defense') };
+    // 진화의휘석(requiresNfe): 사이트 도감 행 name.nfe 가 false 면 미적용 (사이트·게임 같음, 2026-11-13). 없으면 적용.
+    var nfeOff = itemHit && itemHit.rule && itemHit.rule.requiresNfe && poke && poke.name && poke.name.nfe === false;
+    var power ={ atk: realOrNull(poke, 'attack'), spa: realOrNull(poke, 'special_attack'), def: realOrNull(poke, 'defense') };
     var form = g.attackerFormOverride.attackerFormStats(slot, docs.natureKoDoc, docs.natureStatMulDoc);
     if (form) {
       power.atk = form.atk;
@@ -45,7 +47,8 @@
     return {
       speciesKo: speciesKo,
       types: docs.types || [],
-      itemRule: itemHit && FC.ruleFitsSpecies(itemHit.rule, speciesKo) ? itemHit.rule : null,
+      itemRule: itemHit && !nfeOff && FC.ruleFitsSpecies(itemHit.rule, speciesKo) ? itemHit.rule : null,
+      hasItem: !!SL.item(slot),
       ability: names.abilityRule(SL.ability(slot)),
       real: real,
       power: power,

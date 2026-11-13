@@ -1,5 +1,5 @@
 {
-  "version": 19,
+  "version": 20,
   "items": {
     "choice-band": {
       "atkMulPhysical": 1.5,
@@ -122,6 +122,7 @@
     "eviolite": {
       "bulkDefMul": 1.5,
       "bulkSpdMul": 1.5,
+      "requiresNfe": true,
       "nameKo": "진화의휘석"
     },
     "electric-seed": {
@@ -810,6 +811,13 @@
       "bulkConditional": true,
       "bulkFinal": true,
       "nameKo": "파동의방호"
+    },
+    "tera-shell": {
+      "bulkDefMul": 2,
+      "bulkSpdMul": 2,
+      "bulkConditional": true,
+      "bulkFinal": true,
+      "nameKo": "테라셸"
     },
     "shadow-shield": {
       "bulkDefMul": 2,
