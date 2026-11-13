@@ -92,6 +92,7 @@ const ATK_MOVES = {
   physical: { damage_class: 'Physical', name: { id: 'earthquake' } },
   special: { damage_class: 'Special', name: { id: 'psychic' } },
   psyshock: { damage_class: 'Special', name: { id: 'psyshock' } },
+  secretsword: { damage_class: 'Special', name: { id: 'secretsword' } },
   none: null,
 };
 
@@ -103,6 +104,9 @@ async function run() {
   assert(r.ok && r.side.effort === 2 && r.side.personality === 1.1, 'hippo vs physical: ' + JSON.stringify([r.side.effort, r.side.personality]));
   r = await fill(hippo, 'defender', 'calc', ATK_MOVES.psyshock);
   assert(r.ok && r.side.effort === 2 && r.side.personality === 1.1, 'hippo vs psyshock: ' + JSON.stringify([r.side.effort, r.side.personality]));
+  // 신비의칼: 게임은 방어지만 사이트는 특방 칸으로 다룸 (실측 2026-11-13) → 사이트를 따라 특방 값.
+  r = await fill(hippo, 'defender', 'calc', ATK_MOVES.secretsword);
+  assert(r.ok && r.side.effort === 32 && r.side.personality === 1, 'hippo vs secretsword (site = spd): ' + JSON.stringify([r.side.effort, r.side.personality]));
   // 공격측: 물리기 슬롯 → 공격 칸 (마릴리 고집 = 공격 1.1), 특수기 슬롯 → 특공 칸 (마임맨)
   r = await fill(F.azumarill, 'attacker', 'calc');
   assert(r.ok && r.side.effort === 32 && r.side.personality === 1.1, 'azumarill attacker: ' + JSON.stringify([r.side.effort, r.side.personality]));

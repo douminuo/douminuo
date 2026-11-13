@@ -69,6 +69,18 @@ assert(belt[1].base === belt[1].buffed, 'expert belt skips normal move');
 const neuro = cmp(Object.assign({}, beltMon, { ability: { name: 'Neuroforce' } }), ['fire']);
 assert(neuro[0].buffed === Math.floor(75 * 100 * 1.5 * 1.2 * 1.25), 'belt + neuroforce buffed: got ' + neuro[0].buffed);
 
+// 타오르는불꽃: 불꽃기 실수치 ×1.5 는 buffed 만 (게임은 불꽃기를 받아야 켜짐). 사이트 실측 2026-11-13 히드런 특공 182 화염방사 = 36855.
+const flashFire = cmp(
+  {
+    pokemon: { moves: [{ name: 'Flamethrower', power: '90', damage_class: 'special', type: 'Fire' }, { name: 'Earth Power', power: '90', damage_class: 'special', type: 'Ground' }], stats: { special_attack: { real: 182 } } },
+    ability: { name: 'Flash Fire' },
+  },
+  ['fire', 'steel']
+);
+assert(flashFire[0].buffed === 36855, 'flash fire buffed (site 36855): got ' + flashFire[0].buffed);
+assert(flashFire[0].base === 24570, 'flash fire base (site no-ability 24570): got ' + flashFire[0].base);
+assert(flashFire[1].base === flashFire[1].buffed, 'flash fire skips non-fire move');
+
 // 포톤가이저: 공격 > 특공이면 물리로 계산 → cls 도 physical (요약의 실능치 가림이 이걸 봄)
 const photon = { name: 'Photon Geyser', power: '100', damage_class: 'special', type: 'Psychic' };
 const pg = cmp({ pokemon: { moves: [photon], stats: { attack: { real: 180 }, special_attack: { real: 133 } } } }, ['psychic']);
