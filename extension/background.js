@@ -300,7 +300,7 @@ importScripts('showdownPaste.js');
    * F20: 슬롯 → 종 타입 [type1, type2?] (영문 slug).
    * 우선순위: (1) 슬롯의 firstType/secondType (2) 번들 pokemonTypeMap.bySlug
    *          (3) 마지막 수단으로 PokéAPI fetch — 신규 폼이 번들에 없을 때만.
-   * §A.4 보호 원칙: (3)은 평소 발동되지 않아야 한다.
+   * CLAUDE §4 트래픽 보호: (3)은 평소 발동되지 않아야 한다.
    */
   function resolveSpeciesTypesForSlot(slotData) {
     var local = collectTypesFromSlotPokemon(SL.mon(slotData));

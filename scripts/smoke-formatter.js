@@ -78,7 +78,7 @@ const tera = slot({ ability: '테라셸', reals: [202, 10, 162, 10, 162, 10] });
 assert(bulkOf(tera).physBase === 79620 && bulkOf(tera).physBuffed === 159240 && bulkOf(tera).specBuffed === 159240, 'tera shell: ' + JSON.stringify(bulkOf(tera)));
 assert(inlineOf(tera).physBuffed === 79620, 'tera shell inline excluded');
 
-// BACKLOG #2: 실능치 줄 — 기술배치상 안 쓰는 A/C 는 x.
+// 실능치 줄 — 기술배치상 안 쓰는 A/C 는 x.
 const sr = slot({ reals: [125, 100, 50, 90, 60, 80], moves: ['Tackle'] });
 const realLine = (mp) => formatSlotsText([sr], [{ movePowers: mp }], { includeRealStats: true }).split('\n')[2];
 const P = { base: 1, buffed: 1, cls: 'physical' };

@@ -239,7 +239,7 @@
 
     var mp = a.movePowers;
     if (options.includeRealStats) {
-      // BACKLOG #2: 기술배치상 전혀 안 쓰는 공격/특수공격 실능치는 'x'. cls = computeMovePowers 의 유효 물리/특수
+      // 기술배치상 전혀 안 쓰는 공격/특수공격 실능치는 'x'. cls = computeMovePowers 의 유효 물리/특수
       // (변화기·미해결 기술은 cell 자체가 null).
       var usesPhysical = false;
       var usesSpecial = false;

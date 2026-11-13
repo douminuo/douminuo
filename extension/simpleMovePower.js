@@ -1,7 +1,7 @@
 /**
  * 결정력: 스마트누오 계산기 potential 이식 — floor(위력 u × 실수치 l × 최종배율 d) × 타수.
  *   u = 위력 특성(테크니션·태그·우격·-스킨·타입특성) 순차 floor, l = 실수치 특성·구애·종 한정 도구 순차 floor,
- *   d = 자속·생명의구슬·힘의머리띠·[맹화]·타입도구/플레이트/주얼·날씨·필드·급소·재앙 (floor 없이 곱).
+ *   d = 자속·생명의구슬·힘의머리띠·[맹화]·타입도구/플레이트/주얼·날씨·필드·급소·재앙·[달인의띠/브레인포스 — buffed 만] (floor 없이 곱).
  * computeMovePowers: { base, buffed, cls } — base 는 조건부 특성 효과 제외(표기용). cls 는 physical|special.
  * 한글 기술명·도구·특성 → koNames.js 해석기(names) — 사이트 표기 우선.
  * 맹화·모래의힘·선파워: HP·실제 날씨는 보지 않고 배율만 적용.
@@ -328,7 +328,7 @@
       if (isSpec && ar.movePowerFoeSpDefenseRuinMul != null) d *= num(ar.movePowerFoeSpDefenseRuinMul, 1);
       // 달인의띠·브레인포스: 효과가 굉장할 때만 → 상성표 없이 "약점 상정"으로 buffed 만 (사이트 결정력엔 없음,
       // 데미지에서만 약점일 때 ×1.2 — 실측 2026-11-10, 사용자 결정). 노말은 약점을 찌를 수 없어 제외. 약점 배율 자체는 안 곱함.
-      // shortcut: 다른 최종 배율과의 곱 순서는 사이트 데미지와 대조 안 함, 1 차이가 나면 자리 옮길 것.
+      // shortcut: 사이트 결정력에 없는 값이라 곱 순서를 맞춰 볼 대상이 없음 (REA 2026-11-13) — 데미지 표시를 넣게 되면 smogon 순서(최종 배율은 자속·상성 뒤 pokeRound)로.
       var seMul = (ir.superEffectiveMul != null ? num(ir.superEffectiveMul, 1) : 1) *
         (ar.superEffectiveMul != null ? num(ar.superEffectiveMul, 1) : 1);
       // 1.5×1.2 = 1.7999… 로 floor 가 1 모자라는 것 방지 — 사이트에 없는 값이라 이 경우만 반올림해 정리.

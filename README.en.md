@@ -55,7 +55,7 @@ To update, repeat these steps with the new release zip. You can also unzip it ov
 
 Shows Power and bulk for every Pokémon on your team and updates them as the team changes.
 
-- **Power (결정력)** is a measure of offensive strength common in the Korean community, shown after each move. It's roughly the attacking stat × move base power × STAB × item and Ability modifiers. When a modifier only applies under a condition (weather, terrain, low HP and so on), you see both values as `base→boosted`.
+- **Power (결정력)** is a measure of offensive strength common in the Korean community, shown after each move. It's roughly the attacking stat × move base power × STAB × item and Ability modifiers. When a modifier only applies under a condition (weather, terrain, low HP and so on), you see both values as `(base->boosted)`.
 - **Bulk (내구력)** is HP × Defense for physical bulk and HP × Sp. Def for special bulk, with item and Ability modifiers. It sits in the card's top-right corner as `physical/special`.
 
 ### Speed tiers

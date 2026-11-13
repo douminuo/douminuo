@@ -2,7 +2,7 @@
  * 페이지(MAIN) 컨텍스트에서 실행됨.
  *
  * Phase 2.A (2026-05-09): 스마트누오 Nuxt 3 — Vue 인스턴스 대신 `window.__NUXT__.state` 의
- * useState payload 에 attacker/defender 를 직접 쓴다. (RENEWAL_FIX_PLAN §15.2~15.3)
+ * useState payload 에 attacker/defender 를 직접 쓴다.
  *
  * 격리: isolated world 의 calcFill.js 가 postMessage 로 NUO_APPLY_CALC_V31 { side, payload, page } 보내면
  * 본 파일이 NUO_CALC_RESULT 로 응답한다. 한 번에 한쪽만.
@@ -204,7 +204,7 @@
     if (!att || !internalKey) return;
     var pair = WX_INTERNAL_TO_NUO[String(internalKey).toLowerCase().trim()];
     if (!pair || !pair.kr) return;
-    // 사이트는 weather/field 를 {en, kr} 객체로 기대 (§16-9 equipment 와 동일 family).
+    // 사이트는 weather/field 를 {en, kr} 객체로 기대 (equipment 와 같은 모양).
     att.weather = { en: pair.en, kr: pair.kr };
   }
 
