@@ -177,6 +177,8 @@ importScripts('showdownPaste.js');
 
   /** @returns {Promise<string>} 표시 URL. */
   function postShare(origin, pathname, body, failCode) {
+    // 보내는 쪽은 location.origin 고정이지만 SW 에서도 스마트누오만 (보안 감사 2026-11-14)
+    if (origin !== 'https://smartnuo.com' && origin !== 'https://www.smartnuo.com') return Promise.reject(new Error(failCode));
     var mk = origin + '\n' + body;
     if (!shareMemo[mk]) {
       shareMemo[mk] = fetch(origin + '/api/party/share', {

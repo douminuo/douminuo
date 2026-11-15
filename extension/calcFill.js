@@ -174,7 +174,8 @@
     getSlotsFromHotOrCache().then(function (s) {
       snapInflight = false;
       if (s && Array.isArray(s.slots) && s.slots.length > 0) {
-        snap = { slots: s.slots, art: s.slotArt || [], filled: globalThis.nuoSlotRead.filledFlags(s.slots), msg: '' };
+        // 캐시의 그림 주소도 허용 호스트만 — 2.0.1 이하 캐시에 남은 다른 호스트 (보안 감사 2026-11-14)
+        snap = { slots: s.slots, art: (s.slotArt || []).map(globalThis.nuoSlotRead.imageUrl), filled: globalThis.nuoSlotRead.filledFlags(s.slots), msg: '' };
       } else {
         snap = { slots: null, art: [], filled: [], msg: '파티 페이지를 한 번 열어 주세요' };
       }

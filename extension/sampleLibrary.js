@@ -100,10 +100,9 @@
     });
   }
 
-  /** 이미지 URL 은 https: 또는 사이트 상대경로만 (저장 데이터가 조작돼도 javascript: 등 차단). */
+  /** 이미지 URL = 슬롯 sprite 와 같은 허용 호스트만 (저장 데이터가 조작되거나 2.0.1 이하 저장분이어도 — 보안 감사 2026-11-14). */
   function safeUrl(u) {
-    var s = String(u || '');
-    return /^(https:\/\/|\/[^/])/.test(s) ? s : '';
+    return SL.imageUrl(u);
   }
 
   // 파티 탭 슬롯 아이콘 줄 요약 복사 아이콘과 같은 모양 (teamBuilderFill.js SUM_SVG).

@@ -14,10 +14,13 @@
 
   var STAT_KEYS = ['hp', 'attack', 'defense', 'special_attack', 'special_defense', 'speed'];
 
-  /** 표시 라벨: 문자열 → trim, 객체 → kr → name_kr → name(재귀) → en → label → title 중 첫 비어 있지 않은 값. */
+  /**
+   * 표시 라벨: 문자열 → 제어문자(줄바꿈 등)를 공백 하나로 + trim, 객체 → kr → name_kr → name(재귀) → en → label → title 중 첫 비어 있지 않은 값.
+   * 제어문자 정리 = 공유 링크로 들어온 이름이 복사 텍스트에 줄을 끼워 넣지 못하게 (보안 감사 2026-11-14).
+   */
   function label(v) {
     if (v == null) return '';
-    if (typeof v === 'string') return v.trim();
+    if (typeof v === 'string') return v.replace(/[\x00-\x1f\x7f]+/g, ' ').trim();
     if (typeof v === 'number') return String(v);
     if (typeof v !== 'object' || Array.isArray(v)) return '';
     var keys = ['kr', 'name_kr', 'name', 'en', 'label', 'title'];
@@ -149,7 +152,8 @@
     var host = (parsed.hostname || '').toLowerCase();
     var path = parsed.pathname || '';
     if (!/\.png$/i.test(path)) return false;
-    if (host === 'raw.githubusercontent.com') return /\/sprites\/pokemon\//i.test(path);
+    // PokeAPI/sprites 저장소만 — 다른 계정 저장소 이미지로 바뀌지 않게 (보안 감사 2026-11-14)
+    if (host === 'raw.githubusercontent.com') return /^\/PokeAPI\/sprites\/[^/]+\/sprites\/pokemon\//i.test(path);
     if (host !== 'smartnuo.com' && host !== 'www.smartnuo.com') return false;
     // smartnuo sprite 두 경로: 옛 /upload/sprite/ … · 리뉴얼 후 share 로드 시 /data/sprite/ …
     var pl = path.toLowerCase();
@@ -157,13 +161,13 @@
   }
 
   /**
-   * 슬롯 sprite → 이미지 URL. PokéAPI raw·스마트누오 sprite 경로면 정규화 URL, 그 밖의 스마트누오 주소는 원문
-   * (사이트 `/data/pokeapi-sprites/…` 상대경로 포함), 그 외(다른 호스트·'javascript:' 등)는 ''.
-   * 다른 호스트를 버리는 이유: 공유 링크로 들어온 sprite 값이 <img> 요청을 PRIVACY §2 도메인 밖으로 보내지 않게 (2026-11-13).
+   * 이미지 URL 판정 (슬롯 sprite·저장 카드 일러스트·슬롯 캐시 그림 공통). PokéAPI raw·스마트누오 sprite 경로면 정규화 URL,
+   * 그 밖의 스마트누오 주소는 원문 (사이트 `/data/pokeapi-sprites/…` 상대경로 포함), 그 외(다른 호스트·'javascript:' 등)는 ''.
+   * 다른 호스트를 버리는 이유: 공유 링크로 들어온 값이 <img> 요청을 PRIVACY §2 도메인 밖으로 보내지 않게 (2026-11-13).
+   * 저장 카드·캐시는 그릴 때 이걸 거쳐 2.0.1 이하에 저장된 다른 호스트 주소도 버림 (보안 감사 2026-11-14).
    */
-  function sprite(slot) {
-    var p = mon(slot);
-    var u = p && typeof p.sprite === 'string' ? p.sprite.trim() : '';
+  function imageUrl(raw) {
+    var u = typeof raw === 'string' ? raw.trim() : '';
     if (!u || u.length > 900) return '';
     var abs = u.indexOf('//') === 0 ? 'https:' + u : u;
     try {
@@ -177,6 +181,12 @@
     var h = (parsed.hostname || '').toLowerCase();
     if (h !== 'smartnuo.com' && h !== 'www.smartnuo.com') return '';
     return /^\/[^/]/.test(u) ? u : parsed.href;
+  }
+
+  /** 슬롯 sprite → 이미지 URL (판정 = imageUrl). */
+  function sprite(slot) {
+    var p = mon(slot);
+    return imageUrl(p && p.sprite);
   }
 
   g.nuoSlotRead = {
@@ -200,5 +210,6 @@
     spSix: spSix,
     level: level,
     sprite: sprite,
+    imageUrl: imageUrl,
   };
 })(typeof globalThis !== 'undefined' ? globalThis : self);
