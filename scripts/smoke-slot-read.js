@@ -13,7 +13,9 @@ const ctx = { console, URL };
 ctx.globalThis = ctx.self = ctx;
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'extension', 'slotRead.js'), 'utf8'), ctx);
+vm.runInContext(fs.readFileSync(path.join(__dirname, '..', 'extension', 'sampleLibrary.js'), 'utf8'), ctx);
 const SL = ctx.nuoSlotRead;
+const LIBP = ctx.nuoSampleLibrary._pure;
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -85,5 +87,22 @@ eq(sp(''), '', 'sprite 빈 값');
 eq(sp('https://evil.example/a.png'), '', 'sprite 다른 호스트 https');
 eq(sp('//evil.example/a.png'), '', 'sprite 다른 호스트 //');
 eq(sp('https://smartnuo.com/data/pokeapi-sprites/front/681.png'), 'https://smartnuo.com/data/pokeapi-sprites/front/681.png', 'sprite 스마트누오 절대주소');
+// raw.githubusercontent 는 PokeAPI/sprites 저장소만 (보안 감사 10, 2026-11-14).
+eq(sp('https://raw.githubusercontent.com/someone/repo/main/sprites/pokemon/1.png'), '', 'sprite raw 다른 저장소');
+
+// 이미지 URL 판정 한 곳 (보안 감사 1·2): 저장 카드 일러스트·슬롯 캐시 그림도 같은 기준. 2.0.1 이하 저장분에 남은 다른 호스트도 그릴 때 버림.
+const ART = 'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/other/official-artwork/730.png'; // 사이트 카드 실측 2026-11-14
+eq(SL.imageUrl(ART), ART, 'imageUrl 사이트 카드 일러스트');
+eq(SL.imageUrl('/data/pokeapi-sprites/front/681.png'), '/data/pokeapi-sprites/front/681.png', 'imageUrl 상대경로');
+eq([SL.imageUrl('https://evil.example/official-artwork/1.png'), SL.imageUrl('javascript:alert(1)'), SL.imageUrl(null)], ['', '', ''], 'imageUrl 거름');
+const cardHtml = LIBP.renderCard({ art: 'https://evil.example/official-artwork/1.png', slot: { pokemon: { name: { kr: 'a' } } } });
+assert(cardHtml.indexOf('evil.example') === -1, 'renderCard 다른 호스트 art 버림');
+assert(LIBP.renderCard({ art: ART, slot: { pokemon: { name: { kr: 'a' } } } }).indexOf(ART) !== -1, 'renderCard 사이트 art 유지');
+const partyHtml = LIBP.renderPartyCard({ name: 'p', slots: [{ pokemon: { name: { kr: 'a' }, sprite: '/data/pokeapi-sprites/front/1.png' } }], arts: ['https://evil.example/x.png'] });
+assert(partyHtml.indexOf('evil.example') === -1 && partyHtml.indexOf('/data/pokeapi-sprites/front/1.png') !== -1, 'renderPartyCard 다른 호스트 art → sprite 로 대체');
+
+// 표시 라벨의 제어문자(줄바꿈 등) = 공백 하나 — 공유 링크로 들어온 이름이 복사 텍스트에 줄을 끼워 넣지 못하게 (보안 감사 3).
+eq(SL.label('a\nhttps://evil.example/#ps=1'), 'a https://evil.example/#ps=1', 'label 줄바꿈');
+eq(SL.label({ kr: ' a\r\n\tb\u0000 ' }), 'a b', 'label 제어문자 연속');
 
 console.log('smoke-slot-read: ok');

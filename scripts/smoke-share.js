@@ -117,6 +117,16 @@ async function run() {
   r = await copySlot(sw, F.azumarill);
   assert(r.ok && sharePosts(sw).length === 2, 'retry after in-flight fail: ' + sharePosts(sw).length);
 
+  // --- 공유 POST 는 스마트누오 origin 만 (보안 감사 6) ---
+  sw = loadSW(EXT);
+  r = await sw.send({ type: 'FORMAT_BUILDER_SLOT', slotIndex: 2, slotData: F.azumarill, origin: 'https://evil.example', pathname: '/party', formatOptions: {} });
+  assert(!r.ok && r.error === SLOT_FAIL, 'slot copy, other origin: ' + JSON.stringify(r));
+  r = await sw.send({ type: 'COPY_PARTY_SHARE_URL', partySlots: PARTY, origin: 'https://evil.example', pathname: '/party', formatOptions: {} });
+  assert(!r.ok && r.error === PARTY_FAIL, 'party copy, other origin: ' + JSON.stringify(r));
+  assert(sharePosts(sw).length === 0, 'other origin = 0 POST: ' + JSON.stringify(sharePosts(sw)));
+  r = await sw.send({ type: 'FORMAT_BUILDER_SLOT', slotIndex: 2, slotData: F.azumarill, origin: 'https://www.smartnuo.com', pathname: '/party', formatOptions: {} });
+  assert(r.ok && sharePosts(sw).length === 1, 'www.smartnuo.com allowed: ' + JSON.stringify(r));
+
   console.log('smoke-share: ok');
 }
 run().catch((e) => { console.error(e); process.exit(1); });
