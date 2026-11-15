@@ -1,0 +1,3 @@
+#!/bin/sh
+# 커밋 전 검사 (smoke·로드 순서·JSON·ES5). 켜기: git config core.hooksPath .githooks
+exec node scripts/check.js
