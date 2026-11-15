@@ -6,7 +6,7 @@
  * 기술 칸 (2026-11-10 실측): 목록에서 고른 기술 = { name:{id,name,kr,type,base_power,category}, name_kr, type(한글),
  *   power, damage_class('Physical'|'Special'|'Status') } — 위력 변동 기술(자이로볼 등)은 power 0. 글자만 친 기술 =
  *   { name:'사이코쇼크'(문자열), name_kr:'', type:'', power:0, damage_class:'' }.
- * 값은 문자열 또는 { kr, en, name } 객체 — 둘 다 label() 로 읽음. 사이트 모양이 바뀌면 여기만 고침 (TEMPLATES §10.1).
+ * 값은 문자열 또는 { kr, en, name } 객체 — 둘 다 label() 로 읽음. 사이트 모양이 바뀌면 여기만 고침.
  * SW(importScripts) 와 isolated 콘텐츠 스크립트(manifest) 가 같은 파일을 로드. MAIN bridge 는 쓰지 않음.
  */
 (function (g) {

@@ -61,7 +61,7 @@ function checkOrder(label, files) {
 
 const manifest = JSON.parse(fs.readFileSync(path.join(EXT, 'manifest.json'), 'utf8'));
 const csFiles = manifest.content_scripts[0].js;
-// nuoTokens 맨 앞 — 모든 Shadow CSS·토스트가 prepend (TEMPLATES §9).
+// nuoTokens 맨 앞 — 모든 Shadow CSS·토스트가 prepend.
 if (csFiles[0] !== 'styles/nuoTokens.js') fails.push('manifest: styles/nuoTokens.js 가 content_scripts 맨 앞이 아님');
 checkOrder('manifest content_scripts', csFiles);
 

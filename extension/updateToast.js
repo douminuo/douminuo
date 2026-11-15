@@ -14,7 +14,7 @@
   var SK_LAST_SEEN = 'nuo_fmt_lastSeenVersion';
   var AUTO_DISMISS_MS = 8000;
 
-  // TEMPLATES.md v7: context invalidated 방어
+  // context invalidated(확장 새로고침) 방어 — runtime.id 없으면 getURL 이 chrome-extension://invalid/
   function isExtValid() {
     try { return !!(chrome && chrome.runtime && chrome.runtime.id); }
     catch (e) { return false; }

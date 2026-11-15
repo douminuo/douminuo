@@ -1,7 +1,7 @@
 /**
  * 문서의 `백틱` 식별자·파일명 중 코드(extension/, scripts/)에 더 없는 것 → 문서별 목록.
  *
- *   node scripts/audit-doc-refs.js TEMPLATES.md CLAUDE.md BACKLOG.md
+ *   node scripts/audit-doc-refs.js CLAUDE.md BACKLOG.md .claude/rules/*.md
  *
  * 이름만 봄 — 이름이 있어도 내용이 틀린 경우(대부분)는 손 대조 (MAINTENANCE.md §2).
  * 오탐 많음 (사이트 키·영문 단어) — 목록을 훑어 진짜 사라진 이름만 고침.

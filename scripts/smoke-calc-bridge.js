@@ -171,7 +171,7 @@ async function run() {
   r = await atkMove(oneMove(mv('iciclespear', 'Icicle Spear', '고드름침', 'Ice', '얼음', 25, 'Physical')));
   assert(JSON.stringify(r.move.name.multihit) === '[2,5]', 'icicle spear multihit: ' + JSON.stringify(r.move.name));
 
-  // 1.4.0 날씨·필드: 공격측 특성의 날씨·필드가 계산기 칸에 {en,kr} 로 (TEMPLATES §6.4). 이름 = 게임 한국어 표기 (모래바람·일렉트릭필드).
+  // 1.4.0 날씨·필드: 공격측 특성의 날씨·필드가 계산기 칸에 {en,kr} 로. 이름 = 게임 한국어 표기 (모래바람·일렉트릭필드).
   const sandHippo = JSON.parse(JSON.stringify(hippo));
   sandHippo.pokemon.ability = '모래날림';
   r = await fill(sandHippo, 'attacker', 'calc');

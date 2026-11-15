@@ -240,7 +240,7 @@
       schema: SLOT_CACHE_SCHEMA,
     };
     _hot = snap;
-    // 영속 캐시 — 실패는 조용히 (TEMPLATES §0 “조용한 실패”).
+    // 영속 캐시 — 실패는 조용히.
     try {
       if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
         var obj = {};
