@@ -5,11 +5,9 @@ scripts/regulation-speed-audit-report.json
 scripts/legacy/regulationMaSpeedRefNamu.json
 
 # Local-only backup — not pushed (keep copies on disk only)
-.cursor/rules/karpathy-guidelines.mdc
 /RENEWAL_FIX_PLAN.md
 
 # Private working notes — kept local, not published on GitHub
-.claudeignore
 /BACKLOG.md
 /할일.md
 /research.md
