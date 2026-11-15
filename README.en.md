@@ -1,4 +1,4 @@
-# Douminuo (Chrome extension v2.0.1)
+# Douminuo (Chrome extension v2.0.2)
 
 [한국어](README.md) | **English**
 
